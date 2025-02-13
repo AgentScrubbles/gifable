@@ -31,7 +31,7 @@ jobs:
 
   e2e:
     timeout-minutes: 60
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: install
     services:
       s3-mock:
@@ -63,8 +63,6 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }} # (1)
-      - name: Install Playwright deps
-        run: apt update && apt install -y libasound2-dev
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
       - name: Run Playwright tests
