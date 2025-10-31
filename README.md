@@ -35,6 +35,51 @@ docker run -d \
   ghcr.io/pietvanzoen/gifable:latest
 ```
 
+## Database Support
+
+Gifable supports multiple database providers:
+
+- **SQLite** (default) - Perfect for single-server deployments and development
+- **PostgreSQL** - Recommended for production, especially with managed services like Digital Ocean
+
+See [docs/database-providers.md](docs/database-providers.md) for detailed configuration instructions, migration guides, and best practices.
+
+### Quick Start with PostgreSQL
+
+1. Update `prisma/schema.prisma`:
+   ```prisma
+   datasource db {
+     provider = "postgresql"
+     url      = env("DATABASE_URL")
+   }
+   ```
+
+2. Set your DATABASE_URL in `.env`:
+   ```bash
+   DATABASE_URL="postgresql://user:password@host:5432/gifable?sslmode=require"
+   ```
+
+3. Run migrations:
+   ```bash
+   npx prisma migrate deploy
+   ```
+
+### Migrating from SQLite to PostgreSQL
+
+**Important:** Keep `prisma/schema.prisma` as SQLite during migration. The script connects to both databases independently.
+
+```bash
+# Make sure schema.prisma still has provider = "sqlite"
+SQLITE_URL="file:./dev.db" POSTGRES_URL="postgresql://user:password@host:5432/gifable?sslmode=require" npm run migrate:sqlite-to-postgres
+
+# After successful migration, update schema.prisma to:
+# provider = "postgresql"
+# Then update your .env DATABASE_URL and run:
+npx prisma generate
+```
+
+See the [database providers documentation](docs/database-providers.md) for detailed instructions.
+
 ## Configuration
 
 See `.env.example` for all available configuration options.
