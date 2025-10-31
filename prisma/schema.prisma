@@ -20,6 +20,7 @@ model Media {
   height     Int?
   color      String?
   size       Int?
+  isPublic   Boolean  @default(true)
   userId String
   user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

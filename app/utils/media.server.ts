@@ -12,6 +12,16 @@ const log = debug("app:media-helpers");
 
 const MAX_FILE_SIZE = bytes(envServer.get('MAX_FILE_SIZE') ?? "10MB");
 
+export function getFullProxyImageUrl(mediaId: string): string {
+  const appUrl = envServer.appUrl.replace(/\/$/, ""); // Remove trailing slash
+  return `${appUrl}/media/${mediaId}/image`;
+}
+
+export function getFullProxyThumbnailUrl(mediaId: string): string {
+  const appUrl = envServer.appUrl.replace(/\/$/, ""); // Remove trailing slash
+  return `${appUrl}/media/${mediaId}/thumbnail`;
+}
+
 type UploadOutput = {
   url: string;
   size: number;
