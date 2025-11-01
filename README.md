@@ -9,6 +9,7 @@ Gifable is a self hostable gif library manager.
 - Upload gifs to your S3 compatible bucket.
 - Works with javascript disabled.
 - Keyboard / accessibility friendly.
+- **Matrix Federation** - Share GIFs with Matrix clients (Element, Gomuks, etc.) using MXC URIs.
 
 ## Running with docker
 
@@ -83,3 +84,56 @@ See the [database providers documentation](docs/database-providers.md) for detai
 ## Configuration
 
 See `.env.example` for all available configuration options.
+
+## Matrix Federation
+
+Gifable supports Matrix federation, allowing Matrix clients to use your GIFs via MXC URIs (`mxc://`). This enables seamless integration with Matrix messaging platforms like Element, Gomuks, FluffyChat, and more.
+
+### How It Works
+
+- Your Gifable instance acts as a Matrix media server
+- Public media can be referenced using `mxc://your-domain.com/media-id` URIs
+- Matrix homeservers fetch media via standard Matrix endpoints
+- No duplicates - the same GIF = the same MXC URI across all Matrix rooms
+- Homeservers cache media and can independently manage cleanup
+
+### Setup
+
+1. **Set your public domain** in `.env`:
+   ```bash
+   APP_URL=https://gifs.example.com
+   ```
+
+2. **Ensure media is public** - Only public media is accessible via federation
+
+3. **That's it!** Matrix endpoints are automatically available:
+   - `/.well-known/matrix/server` - Server discovery
+   - `/_matrix/media/v3/download/{serverName}/{mediaId}` - Media downloads
+   - `/_matrix/media/v3/thumbnail/{serverName}/{mediaId}` - Thumbnails
+
+### Usage
+
+Generate MXC URIs in your code:
+
+```typescript
+import { getMxcUri } from "~/utils/media.server";
+
+const mxcUri = getMxcUri(mediaId);
+// Returns: "mxc://gifs.example.com/abc-123-def"
+```
+
+### Testing
+
+Test your Matrix federation setup:
+
+```bash
+# Run the test script
+APP_URL=http://localhost:3000 TEST_MEDIA_ID=your-media-id ./scripts/test-matrix-federation.sh
+
+# Or test manually
+curl https://gifs.example.com/.well-known/matrix/server
+```
+
+For detailed documentation, see:
+- [docs/matrix-federation.md](docs/matrix-federation.md) - Complete guide
+- [docs/matrix-federation-testing.md](docs/matrix-federation-testing.md) - Testing instructions
