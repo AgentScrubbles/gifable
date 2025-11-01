@@ -1,9 +1,11 @@
-import type { User } from "@prisma/client";
+import type { User } from "~/db/schema";
 import type { ActionArgs, LoaderArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useActionData, useLoaderData } from "@remix-run/react";
 import { notFound } from "remix-utils";
 import { db } from "~/utils/db.server";
+import { users } from "~/db/schema";
+import { eq } from "drizzle-orm";
 import { requireUserId } from "~/utils/session.server";
 import { makeTitle } from "~/utils/meta";
 import { useEffect } from "react";
@@ -54,9 +56,9 @@ export async function action({ request }: ActionArgs) {
 
 export async function loader({ request }: LoaderArgs) {
   const userId = await requireUserId(request);
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: {
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: {
       id: true,
       username: true,
       lastLogin: true,
@@ -70,8 +72,8 @@ export async function loader({ request }: LoaderArgs) {
   return json({
     user,
     users: user?.isAdmin
-      ? await db.user.findMany({
-          select: {
+      ? await db.query.users.findMany({
+          columns: {
             id: true,
             username: true,
             lastLogin: true,

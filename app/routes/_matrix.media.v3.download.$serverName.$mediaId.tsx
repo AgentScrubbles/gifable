@@ -2,6 +2,8 @@ import type { LoaderArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { notFound } from "remix-utils";
 import { db } from "~/utils/db.server";
+import { media } from "~/db/schema";
+import { eq } from "drizzle-orm";
 import { storage } from "~/utils/s3-storage.server";
 import envServer from "~/utils/env.server";
 
@@ -56,11 +58,11 @@ export async function loader({ request, params }: LoaderArgs) {
   }
 
   // Look up the media
-  const media = await db.media.findUnique({
-    where: { id: mediaId },
+  const mediaItem = await db.query.media.findFirst({
+    where: eq(media.id, mediaId),
   });
 
-  if (!media) {
+  if (!mediaItem) {
     return json(
       {
         errcode: "M_NOT_FOUND",
@@ -77,7 +79,7 @@ export async function loader({ request, params }: LoaderArgs) {
 
   // Matrix federation should only serve public media
   // Private media should not be accessible via federation
-  if (!media.isPublic) {
+  if (!mediaItem.isPublic) {
     return json(
       {
         errcode: "M_NOT_FOUND",
@@ -98,7 +100,7 @@ export async function loader({ request, params }: LoaderArgs) {
 
   // Get the S3 storage client
   const s3 = storage();
-  const filename = s3.getFilenameFromURL(media.url);
+  const filename = s3.getFilenameFromURL(mediaItem.url);
 
   if (!filename) {
     return json(
@@ -127,7 +129,7 @@ export async function loader({ request, params }: LoaderArgs) {
     return new Response(null, {
       status: 308,
       headers: {
-        "Location": media.url,
+        "Location": mediaItem.url,
         "Cache-Control": "public, max-age=86400",
       },
     });

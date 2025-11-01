@@ -2,8 +2,10 @@ import { payloadTooLarge } from "./request.server";
 import bytes from "bytes";
 import { storage } from "./s3-storage.server";
 import { debug } from "debug";
-import type { Media, Prisma } from "@prisma/client";
+import type { Media } from "~/db/schema";
 import { db } from "./db.server";
+import { media } from "~/db/schema";
+import { and, isNotNull, ne, not, or, sql } from "drizzle-orm";
 import { LRUCache } from "lru-cache";
 import ms from "ms";
 import { getImageData } from "./image.server";
@@ -222,64 +224,85 @@ global.labelsCache =
   });
 
 export async function getMediaLabels(
-  options?: TermsOptions & { where?: Prisma.MediaWhereInput }
+  options?: TermsOptions & { where?: any }
 ): Promise<LabelsList> {
-  const cacheKey = JSON.stringify(options);
+  try {
+    const { where, ...termsOptions } = options || {};
 
-  const cached = labelsCache.get(cacheKey);
-  if (cached) {
-    log("Using cached labels", { cacheKey });
-    return cached;
+    // Only cache when there's no where clause (to avoid complexity with SQL objects)
+    const cacheKey = where ? null : JSON.stringify(termsOptions);
+
+    if (cacheKey) {
+      const cached = labelsCache.get(cacheKey);
+      if (cached) {
+        log("Using cached labels");
+        return cached;
+      }
+    }
+
+    log("Fetching labels");
+
+    // Build the where clause
+    let whereClause: any;
+    const labelsFilter = or(isNotNull(media.labels), ne(media.labels, ""));
+
+    if (where) {
+      whereClause = and(where, labelsFilter);
+    } else {
+      whereClause = labelsFilter;
+    }
+
+    const mediaRecords = await db.query.media.findMany({
+      where: whereClause,
+      columns: {
+        labels: true,
+      },
+    });
+
+    const result = getCommonLabelsTerms(mediaRecords, termsOptions);
+
+    // Only cache if we have a cache key
+    if (cacheKey) {
+      labelsCache.set(cacheKey, result);
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Error in getMediaLabels:", error);
+    throw error;
   }
-
-  const { where, ...termsOptions } = options || {};
-
-  log("Fetching labels", { cacheKey });
-
-  const media = await db.media.findMany({
-    where: {
-      ...where,
-      OR: [{ labels: { not: null } }, { labels: { not: "" } }],
-    },
-    select: {
-      labels: true,
-    },
-  });
-
-  labelsCache.set(cacheKey, getCommonLabelsTerms(media, termsOptions));
-
-  return labelsCache.get(cacheKey) || [];
 }
 
 export async function getMediaSuggestions(
-  media: Pick<Media, "id" | "fileHash" | "altText" | "labels">
+  mediaItem: Pick<Media, "id" | "fileHash" | "altText" | "labels">
 ) {
-  const suggestionsWhere = {
-    fileHash: media.fileHash,
-    id: { not: media.id },
-  };
-
   const [[altTextMedia], [labelsMedia]] = await Promise.all([
-    media.altText
+    mediaItem.altText
       ? [null]
-      : db.media.findMany({
-          where: {
-            ...suggestionsWhere,
-            AND: [{ altText: { not: "" } }, { altText: { not: null } }],
-          },
-          select: { altText: true },
-          take: 1,
-        }),
-    media.labels
+      : [
+          await db.query.media.findFirst({
+            where: and(
+              media.fileHash === mediaItem.fileHash ? sql`${media.fileHash} = ${mediaItem.fileHash}` : undefined,
+              ne(media.id, mediaItem.id),
+              isNotNull(media.altText),
+              ne(media.altText, "")
+            ),
+            columns: { altText: true },
+          }),
+        ],
+    mediaItem.labels
       ? [null]
-      : db.media.findMany({
-          where: {
-            ...suggestionsWhere,
-            AND: [{ labels: { not: "" } }, { labels: { not: null } }],
-          },
-          select: { labels: true },
-          take: 1,
-        }),
+      : [
+          await db.query.media.findFirst({
+            where: and(
+              media.fileHash === mediaItem.fileHash ? sql`${media.fileHash} = ${mediaItem.fileHash}` : undefined,
+              ne(media.id, mediaItem.id),
+              isNotNull(media.labels),
+              ne(media.labels, "")
+            ),
+            columns: { labels: true },
+          }),
+        ],
   ]);
 
   return {

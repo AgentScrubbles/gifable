@@ -1,10 +1,11 @@
-import type { Prisma } from "@prisma/client";
 import type { LoaderArgs, V2_MetaArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { Link, useLoaderData } from "@remix-run/react";
 import MediaList, { loadMedia, MEDIA_LIST_LINKS } from "~/components/MediaList";
 import QuickSearch from "~/components/QuickSearch";
 import { db } from "~/utils/db.server";
+import { users, media } from "~/db/schema";
+import { eq, like, and } from "drizzle-orm";
 import { getMediaLabels } from "~/utils/media.server";
 import { makeTitle } from "~/utils/meta";
 import { requireUserId } from "~/utils/session.server";
@@ -25,9 +26,9 @@ export async function loader({ request, params }: LoaderArgs) {
 
   const { username } = params;
 
-  const user = await db.user.findUnique({
-    where: { username },
-    select: {
+  const user = await db.query.users.findFirst({
+    where: eq(users.username, username!),
+    columns: {
       id: true,
       username: true,
     },
@@ -37,20 +38,20 @@ export async function loader({ request, params }: LoaderArgs) {
     throw new Response("Not found", { status: 404 });
   }
 
-  const where: Prisma.MediaWhereInput = {
-    user: { username },
-  };
+  const conditions = [eq(media.userId, user.id)];
 
   if (search) {
-    where.labels = { contains: search };
+    conditions.push(like(media.labels, `%${search}%`));
   }
 
-  const [{ media, count }, labels] = await Promise.all([
+  const where = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+  const [{ media: mediaItems, count }, labels] = await Promise.all([
     loadMedia({ where, page }),
-    getMediaLabels({ limit: 100, where: { user: { username } } }),
+    getMediaLabels({ limit: 100, where: eq(media.userId, user.id) }),
   ]);
 
-  return json({ media, mediaCount: count, username, page, labels, search });
+  return json({ media: mediaItems, mediaCount: count, username, page, labels, search });
 }
 
 export default function UserRoute() {

@@ -1,24 +1,46 @@
-import type { Prisma } from "@prisma/client";
-import { PrismaClient } from "@prisma/client";
+import { drizzle as drizzlePostgres } from "drizzle-orm/postgres-js";
+import { drizzle as drizzleSqlite } from "drizzle-orm/better-sqlite3";
+import postgres from "postgres";
+import Database from "better-sqlite3";
+import * as schema from "~/db/schema";
 
-let db: PrismaClient;
+const databaseUrl = process.env.DATABASE_URL;
 
-declare global {
-  var __db: PrismaClient | undefined;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL environment variable is required");
 }
 
-const prismaOptions = {
-  log: ["query", "info", "warn", "error"] as Prisma.LogLevel[],
-};
+type DrizzleDB = ReturnType<typeof drizzlePostgres<typeof schema>> | ReturnType<typeof drizzleSqlite<typeof schema>>;
 
-// this is needed because in development we don't want to restart
-// the server with every change, but we want to make sure we don't
-// create a new connection to the DB with every change either.
+let db: DrizzleDB;
+
+declare global {
+  var __db: DrizzleDB | undefined;
+}
+
+const isPostgres = databaseUrl.startsWith("postgres");
+const enableLogging = process.env.DEBUG?.includes("db") || process.env.DEBUG?.includes("app:*");
+
+// Singleton pattern - prevent multiple connections in development
 if (process.env.NODE_ENV === "production") {
-  db = new PrismaClient(prismaOptions);
+  if (isPostgres) {
+    const client = postgres(databaseUrl);
+    db = drizzlePostgres(client, { schema, logger: enableLogging });
+  } else {
+    const sqliteUrl = databaseUrl.replace("file:", "");
+    const sqlite = new Database(sqliteUrl);
+    db = drizzleSqlite(sqlite, { schema, logger: enableLogging });
+  }
 } else {
   if (!global.__db) {
-    global.__db = new PrismaClient(prismaOptions);
+    if (isPostgres) {
+      const client = postgres(databaseUrl);
+      global.__db = drizzlePostgres(client, { schema, logger: enableLogging });
+    } else {
+      const sqliteUrl = databaseUrl.replace("file:", "");
+      const sqlite = new Database(sqliteUrl);
+      global.__db = drizzleSqlite(sqlite, { schema, logger: enableLogging });
+    }
   }
   db = global.__db;
 }

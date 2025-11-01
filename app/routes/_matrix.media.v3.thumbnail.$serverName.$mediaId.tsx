@@ -1,6 +1,8 @@
 import type { LoaderArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { db } from "~/utils/db.server";
+import { media } from "~/db/schema";
+import { eq } from "drizzle-orm";
 import { storage } from "~/utils/s3-storage.server";
 import envServer from "~/utils/env.server";
 
@@ -54,11 +56,11 @@ export async function loader({ request, params }: LoaderArgs) {
   }
 
   // Look up the media
-  const media = await db.media.findUnique({
-    where: { id: mediaId },
+  const mediaItem = await db.query.media.findFirst({
+    where: eq(media.id, mediaId),
   });
 
-  if (!media) {
+  if (!mediaItem) {
     return json(
       {
         errcode: "M_NOT_FOUND",
@@ -74,7 +76,7 @@ export async function loader({ request, params }: LoaderArgs) {
   }
 
   // Matrix federation should only serve public media
-  if (!media.isPublic) {
+  if (!mediaItem.isPublic) {
     return json(
       {
         errcode: "M_NOT_FOUND",
@@ -90,7 +92,7 @@ export async function loader({ request, params }: LoaderArgs) {
   }
 
   // Use thumbnail URL if available, otherwise use original image
-  const thumbnailUrl = media.thumbnailUrl || media.url;
+  const thumbnailUrl = mediaItem.thumbnailUrl || mediaItem.url;
 
   // Check if client supports redirects
   const url = new URL(request.url);

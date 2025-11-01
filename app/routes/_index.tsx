@@ -1,9 +1,10 @@
 import type { LoaderArgs, V2_MetaArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import type { Prisma } from "@prisma/client";
 import { Link, useLoaderData, useSearchParams } from "@remix-run/react";
 
 import { db } from "~/utils/db.server";
+import { media, users } from "~/db/schema";
+import { and, count as drizzleCount, eq, like, ne } from "drizzle-orm";
 import { requireUserId } from "~/utils/session.server";
 
 import MediaList, { loadMedia, MEDIA_LIST_LINKS } from "~/components/MediaList";
@@ -56,49 +57,63 @@ export function meta({ location }: V2_MetaArgs<typeof loader>) {
 }
 
 export async function loader({ request }: LoaderArgs) {
-  const userId = await requireUserId(request);
-  const params = new URLSearchParams(request.url.split("?")[1]);
+  try {
+    const userId = await requireUserId(request);
+    const params = new URLSearchParams(request.url.split("?")[1]);
 
-  const page = parseInt((params.get("page") || "1").trim(), 10);
-  const search = (params.get("search") || "").trim();
-  const select = (params.get("select") || "").trim();
+    const page = parseInt((params.get("page") || "1").trim(), 10);
+    const search = (params.get("search") || "").trim();
+    const select = (params.get("select") || "").trim();
 
-  const where: Prisma.MediaWhereInput = {};
-  const labelsWhere: Prisma.MediaWhereInput = {};
+    const conditions: any[] = [];
+    const labelsConditions: any[] = [];
 
-  if (search) {
-    where.labels = { contains: search };
+    if (search) {
+      conditions.push(like(media.labels, `%${search}%`));
+    }
+    if (select === "") {
+      conditions.push(eq(media.userId, userId));
+      labelsConditions.push(eq(media.userId, userId));
+    }
+    if (select === "not-mine") {
+      conditions.push(ne(media.userId, userId));
+      labelsConditions.push(ne(media.userId, userId));
+    }
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const labelsWhere = labelsConditions.length > 0 ? and(...labelsConditions) : undefined;
+
+    const [{ media: mediaList, count: mediaCount }, user, totalMediaCount, labels] =
+      await Promise.all([
+        loadMedia({ where, page }),
+        db.query.users.findFirst({
+          where: eq(users.id, userId),
+          columns: { preferredLabels: true },
+        }),
+        select === ""
+          ? db
+              .select({ count: drizzleCount() })
+              .from(media)
+              .where(eq(media.userId, userId))
+              .then((result) => result[0]?.count || 0)
+          : null,
+        getMediaLabels({
+          limit: 100,
+          where: labelsWhere,
+        }),
+      ]);
+
+    return json({
+      user,
+      mediaCount,
+      totalMediaCount,
+      media: mediaList,
+      labels,
+    });
+  } catch (error) {
+    console.error("Error in _index loader:", error);
+    throw error;
   }
-  if (select === "") {
-    where.userId = userId;
-    labelsWhere.userId = userId;
-  }
-  if (select === "not-mine") {
-    where.userId = { not: userId };
-    labelsWhere.userId = { not: userId };
-  }
-
-  const [{ media, count: mediaCount }, user, totalMediaCount, labels] =
-    await Promise.all([
-      loadMedia({ where, page }),
-      db.user.findUnique({
-        where: { id: userId },
-        select: { preferredLabels: true },
-      }),
-      select === "" ? db.media.count({ where: { userId } }) : null,
-      getMediaLabels({
-        limit: 100,
-        where: labelsWhere,
-      }),
-    ]);
-
-  return json({
-    user,
-    mediaCount,
-    totalMediaCount,
-    media,
-    labels,
-  });
 }
 
 export default function MediaRoute() {

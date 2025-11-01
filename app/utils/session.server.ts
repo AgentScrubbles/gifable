@@ -3,6 +3,8 @@ import { createCookieSessionStorage, redirect } from "@remix-run/node";
 import env from "./env.server";
 
 import { db } from "./db.server";
+import { users } from "~/db/schema";
+import { eq } from "drizzle-orm";
 import debug from "debug";
 
 const log = debug("app:session");
@@ -19,9 +21,17 @@ async function hashPassword(password: string) {
 
 export async function register({ username, password, isAdmin }: LoginForm) {
   const passwordHash = await hashPassword(password);
-  const user = await db.user.create({
-    data: { username, passwordHash, isAdmin: isAdmin || false },
-  });
+  const now = new Date();
+  const [user] = await db
+    .insert(users)
+    .values({
+      username,
+      passwordHash,
+      isAdmin: isAdmin || false,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning();
   const userData = { id: user.id, username, isAdmin: user.isAdmin };
   log("registered user", userData);
   return userData;
@@ -35,16 +45,13 @@ export async function changePassword({
   password: string;
 }) {
   const passwordHash = await hashPassword(password);
-  await db.user.update({
-    where: { id: userId },
-    data: { passwordHash },
-  });
+  await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
   log("changed password for user %s", userId);
 }
 
 export async function login({ username, password }: LoginForm) {
-  const user = await db.user.findUnique({
-    where: { username },
+  const user = await db.query.users.findFirst({
+    where: eq(users.username, username),
   });
   if (!user) return null;
 
@@ -113,11 +120,11 @@ export async function getUser(request: Request) {
   }
 
   try {
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: { id: true, username: true, isAdmin: true, theme: true },
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+      columns: { id: true, username: true, isAdmin: true, theme: true },
     });
-    return user;
+    return user ?? null;
   } catch {
     throw logout(request);
   }
@@ -135,10 +142,10 @@ export async function logout(request: Request) {
 export async function createUserSession(userId: string, redirectTo: string) {
   const session = await storage.getSession();
   session.set("userId", userId);
-  await db.user.update({
-    where: { id: userId },
-    data: { lastLogin: new Date() },
-  });
+  await db
+    .update(users)
+    .set({ lastLogin: new Date() })
+    .where(eq(users.id, userId));
   log("created session for user", userId);
   return redirect(redirectTo, {
     headers: {
