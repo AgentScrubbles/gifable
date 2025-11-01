@@ -31,7 +31,7 @@ export function storage() {
     bucket: env.require("S3_BUCKET"),
     basePath: env.get("S3_BASE_PATH"),
     storageBaseURL: env.require("S3_STORAGE_BASE_URL"),
-    defaultAcl: env.require("S3_DEFAULT_ACL"),
+    defaultAcl: env.get("S3_DEFAULT_ACL") || "private",
     storage: {
       endPoint: env.require("S3_ENDPOINT"),
       port: Number(env.get("S3_PORT")) || undefined,
