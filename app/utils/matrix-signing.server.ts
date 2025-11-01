@@ -51,15 +51,43 @@ export function getPublicKey(serverName: string): string {
 /**
  * Create canonical JSON for signing
  * https://spec.matrix.org/v1.16/appendices/#canonical-json
+ *
+ * Canonical JSON requirements:
+ * 1. Remove 'signatures' and 'unsigned' fields
+ * 2. Keys sorted lexicographically at ALL levels (recursively)
+ * 3. Minimal whitespace (no spaces after : or ,)
  */
 function canonicalJson(obj: any): string {
-  // Remove signatures field if present
-  const { signatures, ...unsigned } = obj;
+  // Recursively sort all object keys
+  function sortKeys(value: any): any {
+    if (value === null || value === undefined) {
+      return value;
+    }
 
-  // Sort keys and stringify without whitespace
-  const sorted = JSON.stringify(unsigned, Object.keys(unsigned).sort());
+    if (Array.isArray(value)) {
+      return value.map(sortKeys);
+    }
 
-  return sorted;
+    if (typeof value === 'object') {
+      const sorted: any = {};
+      // Sort keys lexicographically (Unicode codepoint order)
+      Object.keys(value).sort().forEach(key => {
+        sorted[key] = sortKeys(value[key]);
+      });
+      return sorted;
+    }
+
+    return value;
+  }
+
+  // Remove 'signatures' and 'unsigned' fields as per Matrix spec
+  const { signatures, unsigned, ...rest } = obj;
+
+  // Recursively sort all keys
+  const sorted = sortKeys(rest);
+
+  // Stringify with minimal whitespace (no spaces)
+  return JSON.stringify(sorted);
 }
 
 /**
