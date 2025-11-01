@@ -46,6 +46,12 @@ curl https://gifs.example.com/.well-known/matrix/server
 # Returns: {"m.server":"gifs.example.com:443"}
 ```
 
+**Server Keys (for federation):**
+```bash
+curl https://gifs.example.com/_matrix/key/v2/server
+# Returns: Signed public key response
+```
+
 **Media Download:**
 ```bash
 curl https://gifs.example.com/_matrix/media/v3/download/gifs.example.com/{mediaId}
