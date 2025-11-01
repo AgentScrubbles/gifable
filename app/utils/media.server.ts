@@ -5,7 +5,7 @@ import { debug } from "debug";
 import type { Media } from "~/db/schema";
 import { db } from "./db.server";
 import { media } from "~/db/schema";
-import { and, isNotNull, ne, not, or, sql } from "drizzle-orm";
+import { and, eq, isNotNull, ne, not, or, sql } from "drizzle-orm";
 import { LRUCache } from "lru-cache";
 import ms from "ms";
 import { getImageData } from "./image.server";
@@ -276,13 +276,20 @@ export async function getMediaLabels(
 export async function getMediaSuggestions(
   mediaItem: Pick<Media, "id" | "fileHash" | "altText" | "labels">
 ) {
+  if (!mediaItem.fileHash) {
+    return {
+      altText: undefined,
+      labels: undefined,
+    };
+  }
+
   const [[altTextMedia], [labelsMedia]] = await Promise.all([
     mediaItem.altText
       ? [null]
       : [
           await db.query.media.findFirst({
             where: and(
-              media.fileHash === mediaItem.fileHash ? sql`${media.fileHash} = ${mediaItem.fileHash}` : undefined,
+              eq(media.fileHash, mediaItem.fileHash),
               ne(media.id, mediaItem.id),
               isNotNull(media.altText),
               ne(media.altText, "")
@@ -295,7 +302,7 @@ export async function getMediaSuggestions(
       : [
           await db.query.media.findFirst({
             where: and(
-              media.fileHash === mediaItem.fileHash ? sql`${media.fileHash} = ${mediaItem.fileHash}` : undefined,
+              eq(media.fileHash, mediaItem.fileHash),
               ne(media.id, mediaItem.id),
               isNotNull(media.labels),
               ne(media.labels, "")

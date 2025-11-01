@@ -2,7 +2,7 @@ import { drizzle as drizzlePostgres } from "drizzle-orm/postgres-js";
 import { drizzle as drizzleSqlite } from "drizzle-orm/better-sqlite3";
 import postgres from "postgres";
 import Database from "better-sqlite3";
-import * as schema from "~/db/schema";
+import * as schema from "../db/schema";
 
 const databaseUrl = process.env.DATABASE_URL;
 
