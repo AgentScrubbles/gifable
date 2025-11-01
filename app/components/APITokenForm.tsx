@@ -3,6 +3,8 @@ import { withZod } from "@remix-validated-form/with-zod";
 import { ValidatedForm } from "remix-validated-form";
 import { z } from "zod";
 import { db } from "~/utils/db.server";
+import { users } from "~/db/schema";
+import { eq } from "drizzle-orm";
 import { copyToClipboard } from "~/utils/helpers.client";
 import FormInput from "./FormInput";
 import SubmitButton from "./SubmitButton";
@@ -19,10 +21,9 @@ const validator = withZod(
 
 export async function apiTokenAction({ userId }: { userId: string }) {
   const apiToken = crypto.randomBytes(24).toString("hex");
-  await db.user.update({
-    where: { id: userId },
-    data: { apiToken },
-  });
+  await db.update(users)
+    .set({ apiToken })
+    .where(eq(users.id, userId));
 
   return json({ success: true, intent: API_TOKEN_INTENT, apiToken });
 }

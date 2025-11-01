@@ -7,6 +7,10 @@ module.exports = {
   // assetsBuildDirectory: "public/build",
   // serverBuildPath: "build/index.js",
   // publicPath: "/build/",
+  serverDependenciesToBundle: [
+    "postgres",
+    "drizzle-orm",
+  ],
   future: {
     v2_errorBoundary: true,
     v2_meta: true,

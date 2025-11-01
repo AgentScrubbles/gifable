@@ -1,4 +1,4 @@
-import type { Media, User } from "@prisma/client";
+import type { Media, User } from "~/db/schema";
 import { Link } from "@remix-run/react";
 import { useHydrated } from "remix-utils";
 import { getTitle, getProxyImageUrl, getProxyThumbnailUrl } from "~/utils/media";

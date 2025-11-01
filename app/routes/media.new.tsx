@@ -14,6 +14,7 @@ import FormInput from "~/components/FormInput";
 import SubmitButton from "~/components/SubmitButton";
 
 import { db } from "~/utils/db.server";
+import { media } from "~/db/schema";
 import { getUser, requireUserId } from "~/utils/session.server";
 import {
   storeBuffer,
@@ -124,20 +125,21 @@ export async function action({ request }: ActionArgs) {
     thumbnailUrl = resp.url;
   }
 
-  const media = await db.media.create({
-    data: {
-      url: mediaUrl,
-      thumbnailUrl,
-      labels,
-      altText,
-      ...imageData,
-      size,
-      userId,
-      fileHash,
-    },
-  });
+  const now = new Date();
+  const [mediaItem] = await db.insert(media).values({
+    url: mediaUrl,
+    thumbnailUrl,
+    labels,
+    altText,
+    ...imageData,
+    size,
+    userId,
+    fileHash,
+    createdAt: now,
+    updatedAt: now,
+  }).returning();
 
-  return redirect(`/media/${media.id}/edit?new=true`);
+  return redirect(`/media/${mediaItem.id}/edit?new=true`);
 }
 
 export async function loader({ request }: LoaderArgs) {

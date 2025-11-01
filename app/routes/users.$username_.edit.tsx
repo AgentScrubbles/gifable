@@ -11,6 +11,8 @@ import {
 } from "~/components/ChangePasswordForm";
 import { useToast } from "~/components/Toast";
 import { db } from "~/utils/db.server";
+import { users } from "~/db/schema";
+import { eq } from "drizzle-orm";
 import { makeTitle } from "~/utils/meta";
 import { requireUser } from "~/utils/session.server";
 
@@ -24,9 +26,9 @@ export async function action({ request, params }: ActionArgs) {
     throw new Response("Not found", { status: 404 });
   }
 
-  const user = await db.user.findUnique({
-    where: { username: params.username as string },
-    select: {
+  const user = await db.query.users.findFirst({
+    where: eq(users.username, params.username!),
+    columns: {
       id: true,
       username: true,
     },
@@ -57,9 +59,9 @@ export async function loader({ request, params }: LoaderArgs) {
 
   const username = params.username as string;
 
-  const user = await db.user.findUnique({
-    where: { username },
-    select: {
+  const user = await db.query.users.findFirst({
+    where: eq(users.username, username),
+    columns: {
       id: true,
       username: true,
     },

@@ -1,4 +1,4 @@
-import type { Media, Prisma } from "@prisma/client";
+import type { Media } from "~/db/schema";
 import { useEffect, useState } from "react";
 import type { MediaItemProps } from "./MediaItem";
 import MediaItem from "./MediaItem";
@@ -7,6 +7,8 @@ import { Link } from "react-router-dom";
 import { useNavigation, useSearchParams } from "@remix-run/react";
 import { promiseHash, useHydrated } from "remix-utils";
 import { db } from "~/utils/db.server";
+import { media } from "~/db/schema";
+import { desc, count as drizzleCount, sql } from "drizzle-orm";
 import styles from "~/styles/search.css";
 
 const PAGE_SIZE = 42;
@@ -17,33 +19,54 @@ export async function loadMedia({
   where,
   page = 1,
 }: {
-  where: Prisma.MediaWhereInput;
+  where: any;
   page: number;
 }) {
-  return promiseHash({
-    count: db.media.count({ where }),
-    media: db.media.findMany({
-      take: page * PAGE_SIZE,
-      where,
-      select: {
-        id: true,
-        url: true,
-        thumbnailUrl: true,
-        labels: true,
-        width: true,
-        height: true,
-        color: true,
-        altText: true,
-        fileHash: true,
-        user: {
-          select: {
-            username: true,
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
+  const mediaItems = await db.query.media.findMany({
+    limit: page * PAGE_SIZE,
+    where,
+    columns: {
+      id: true,
+      url: true,
+      thumbnailUrl: true,
+      labels: true,
+      width: true,
+      height: true,
+      color: true,
+      altText: true,
+      fileHash: true,
+      userId: true,
+    },
+    orderBy: desc(media.createdAt),
   });
+
+  // Fetch users separately to avoid complex LATERAL joins
+  const userIds = [...new Set(mediaItems.map((m) => m.userId))];
+  const users = await db.query.users.findMany({
+    where: (users, { inArray }) => inArray(users.id, userIds),
+    columns: {
+      id: true,
+      username: true,
+    },
+  });
+
+  const userMap = new Map(users.map((u) => [u.id, u]));
+
+  // Attach user data to media items
+  const mediaWithUsers = mediaItems.map((m) => ({
+    ...m,
+    user: userMap.get(m.userId) || { username: "Unknown" },
+  }));
+
+  const countResult = await db
+    .select({ count: drizzleCount() })
+    .from(media)
+    .where(where);
+
+  return {
+    count: countResult[0]?.count || 0,
+    media: mediaWithUsers,
+  };
 }
 
 export default function MediaList({

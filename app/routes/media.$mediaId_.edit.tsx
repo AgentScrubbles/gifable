@@ -1,4 +1,4 @@
-import type { Media } from "@prisma/client";
+import type { Media } from "~/db/schema";
 import type { ActionArgs, LoaderArgs, V2_MetaArgs } from "@remix-run/node";
 import { redirect } from "@remix-run/node";
 import { json } from "@remix-run/node";
@@ -16,6 +16,8 @@ import { ValidatedForm, validationError } from "remix-validated-form";
 import SubmitButton from "~/components/SubmitButton";
 
 import { db } from "~/utils/db.server";
+import { media } from "~/db/schema";
+import { eq } from "drizzle-orm";
 import { getMediaLabels, getMediaSuggestions } from "~/utils/media.server";
 import { rename } from "~/utils/media.server";
 import { requireUser } from "~/utils/session.server";
@@ -46,21 +48,21 @@ export async function action({ params, request }: ActionArgs) {
   const { mediaId: id } = params;
   const { labels, altText, isPublic } = result.data;
 
-  const [media] = await db.media.findMany({
-    where: { id, userId: user.id },
-    select: { id: true, url: true, thumbnailUrl: true },
+  const mediaItem = await db.query.media.findFirst({
+    where: eq(media.id, id!),
+    columns: { id: true, url: true, thumbnailUrl: true, userId: true },
   });
 
-  if (!media) {
+  if (!mediaItem || mediaItem.userId !== user.id) {
     throw forbidden({ message: `You can't edit this media` });
   }
 
   let renameData: Pick<Media, "url" | "thumbnailUrl"> | null = null;
-  const currentFilename = media.url.split("/").pop();
+  const currentFilename = mediaItem.url.split("/").pop();
   if (currentFilename !== result.data.filename) {
     const newFilename = `${user.username}/${result.data.filename}`;
     try {
-      renameData = await rename(media, newFilename);
+      renameData = await rename(mediaItem, newFilename);
     } catch (error: any) {
       if (error?.message === "File already exists") {
         return conflict({
@@ -74,29 +76,28 @@ export async function action({ params, request }: ActionArgs) {
     }
   }
 
-  await db.media.update({
-    where: { id },
-    data: { labels, altText, isPublic, ...renameData },
-  });
+  await db.update(media)
+    .set({ labels, altText, isPublic, ...renameData })
+    .where(eq(media.id, id!));
 
   return redirect(`/media/${id}`);
 }
 
 export async function loader({ params }: LoaderArgs) {
-  const media = await db.media.findUnique({
-    where: { id: params.mediaId },
+  const mediaItem = await db.query.media.findFirst({
+    where: eq(media.id, params.mediaId!),
   });
-  if (!media) {
+  if (!mediaItem) {
     throw notFound({ message: "Media not found" });
   }
 
   const [suggestions, terms] = await Promise.all([
-    getMediaSuggestions(media),
+    getMediaSuggestions(mediaItem),
     getMediaLabels(),
   ]);
 
   return json({
-    media,
+    media: mediaItem,
     terms,
     suggestions,
   });

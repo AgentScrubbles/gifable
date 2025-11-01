@@ -38,48 +38,76 @@ docker run -d \
 
 ## Database Support
 
-Gifable supports multiple database providers:
+Gifable uses **Drizzle ORM** for database management, supporting multiple database providers with automatic switching via environment variables:
 
 - **SQLite** (default) - Perfect for single-server deployments and development
 - **PostgreSQL** - Recommended for production, especially with managed services like Digital Ocean
+- **MySQL** - Also supported through Drizzle ORM
 
-See [docs/database-providers.md](docs/database-providers.md) for detailed configuration instructions, migration guides, and best practices.
+The database provider is **automatically detected** from your `DATABASE_URL` - no configuration files to edit!
+
+### Quick Start with SQLite (Default)
+
+Simply set your DATABASE_URL in `.env`:
+```bash
+DATABASE_URL="file:./data/gifable.db"
+```
 
 ### Quick Start with PostgreSQL
 
-1. Update `prisma/schema.prisma`:
-   ```prisma
-   datasource db {
-     provider = "postgresql"
-     url      = env("DATABASE_URL")
-   }
-   ```
-
-2. Set your DATABASE_URL in `.env`:
+1. Set your DATABASE_URL in `.env`:
    ```bash
    DATABASE_URL="postgresql://user:password@host:5432/gifable?sslmode=require"
    ```
 
-3. Run migrations:
-   ```bash
-   npx prisma migrate deploy
-   ```
+2. That's it! The app automatically detects PostgreSQL and uses the correct driver.
+
+### Database Commands
+
+```bash
+# Push schema to database (creates/updates tables for existing databases)
+npm run db:push
+
+# Generate migration files (for new schemas)
+npm run db:generate
+
+# Open Drizzle Studio (database GUI)
+npm run db:studio
+
+# Run seed script
+npm run db:seed
+```
 
 ### Migrating from SQLite to PostgreSQL
 
-**Important:** Keep `prisma/schema.prisma` as SQLite during migration. The script connects to both databases independently.
+The migration script automatically handles database type differences:
 
 ```bash
-# Make sure schema.prisma still has provider = "sqlite"
-SQLITE_URL="file:./dev.db" POSTGRES_URL="postgresql://user:password@host:5432/gifable?sslmode=require" npm run migrate:sqlite-to-postgres
+SQLITE_URL="file:./dev.db" \
+POSTGRES_URL="postgresql://user:password@host:5432/gifable?sslmode=require" \
+npm run migrate:sqlite-to-postgres
 
-# After successful migration, update schema.prisma to:
-# provider = "postgresql"
-# Then update your .env DATABASE_URL and run:
-npx prisma generate
+# Then update your .env DATABASE_URL to the PostgreSQL URL
 ```
 
-See the [database providers documentation](docs/database-providers.md) for detailed instructions.
+### Connecting to an Existing Database
+
+If you have an **existing database** from a previous Prisma installation:
+
+1. **No migration needed!** Drizzle works with your existing tables.
+
+2. Simply set your `DATABASE_URL`:
+   ```bash
+   # For SQLite
+   DATABASE_URL="file:./data/gifable.db"
+
+   # For PostgreSQL
+   DATABASE_URL="postgresql://user:password@host:5432/gifable?sslmode=require"
+   ```
+
+3. Drizzle will automatically connect to your existing database structure.
+
+**Note:** The table structure remains the same (User and Media tables), so existing Prisma databases work seamlessly with Drizzle.
 
 ## Configuration
 

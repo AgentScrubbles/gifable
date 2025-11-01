@@ -1,4 +1,4 @@
-import type { User } from "@prisma/client";
+import type { User } from "~/db/schema";
 import { Link } from "@remix-run/react";
 
 export function UserMangement({

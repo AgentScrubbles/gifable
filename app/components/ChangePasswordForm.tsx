@@ -1,4 +1,4 @@
-import type { User } from "@prisma/client";
+import type { User } from "~/db/schema";
 import { json } from "@remix-run/node";
 import { withZod } from "@remix-validated-form/with-zod";
 import { ValidatedForm, validationError } from "remix-validated-form";

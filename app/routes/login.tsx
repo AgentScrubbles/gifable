@@ -9,6 +9,8 @@ import {
 import { getClientIPAddress, useHydrated } from "remix-utils";
 
 import { db } from "~/utils/db.server";
+import { users } from "~/db/schema";
+import { eq } from "drizzle-orm";
 import { badRequest } from "~/utils/request.server";
 import { createUserSession, login, register } from "~/utils/session.server";
 import { withZod } from "@remix-validated-form/with-zod";
@@ -101,8 +103,8 @@ export async function action({ request }: ActionArgs) {
       );
       if (resp) return rateLimitError(resp);
 
-      const userExists = await db.user.findUnique({
-        where: { username },
+      const userExists = await db.query.users.findFirst({
+        where: eq(users.username, username),
       });
       if (userExists) {
         log("User %s already exists", username);
