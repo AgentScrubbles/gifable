@@ -38,6 +38,9 @@ RUN apk add --update curl && rm -rf /var/cache/apk/*
 ADD . .
 RUN npm run build
 
+# Compile seed-admin.ts to JavaScript for production
+RUN npx esbuild seed-admin.ts --bundle --platform=node --format=cjs --outfile=seed-admin.js --external:postgres --external:better-sqlite3 --external:drizzle-orm --external:bcryptjs --external:dotenv
+
 # Finally, build the production image with minimal footprint
 FROM base
 
@@ -49,6 +52,7 @@ WORKDIR /app
 COPY --from=production-deps /app/node_modules /app/node_modules
 COPY --from=build /app/build /app/build
 COPY --from=build /app/public /app/public
+COPY --from=build /app/seed-admin.js /app/seed-admin.js
 ADD . .
 
 LABEL org.opencontainers.image.source=https://github.com/pietvanzoen/gifable

@@ -9,7 +9,7 @@
     "build": "remix build",
     "dev": "DEBUG=app:* remix dev",
     "predev": "npm run install:css",
-    "prestart": "node --require esbuild-register ./seed-admin.ts",
+    "prestart": "node ./seed-admin.js",
     "start": "node -r dotenv/config node_modules/.bin/remix-serve build",
     "typecheck": "tsc",
     "test": "jest app",
@@ -20,6 +20,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "node --require esbuild-register app/db/seed.ts",
+    "build:seed-admin": "esbuild seed-admin.ts --bundle --platform=node --format=cjs --outfile=seed-admin.js --external:postgres --external:better-sqlite3 --external:drizzle-orm --external:bcryptjs --external:dotenv",
     "migrate:sqlite-to-postgres": "node scripts/migrate-sqlite-to-postgres.js"
   },
   "dependencies": {
