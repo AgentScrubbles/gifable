@@ -159,15 +159,32 @@ curl https://gifs.example.com/.well-known/matrix/server
 }
 ```
 
-### 2. Test with Matrix Federation Tester
+### 2. Test with Matrix Federation Tester (Optional)
 
-Visit https://federationtester.matrix.org/ and enter your domain: `gifs.example.com`
+⚠️ **Important:** The Matrix Federation Tester (https://federationtester.matrix.org/) is designed for **full Matrix homeservers**, not media-only proxies like Gifable.
 
-The tester will verify:
-- ✅ `.well-known` endpoint is accessible
-- ✅ Server name is correctly configured
-- ✅ HTTPS is working
-- ✅ Federation is properly set up
+You may see errors about:
+- Port 8448 timeouts (expected - we use port 443)
+- Missing federation endpoints (expected - we're media-only)
+
+**This is normal!** As long as your `.well-known` and media endpoints work, you're good.
+
+To test anyway, visit https://federationtester.matrix.org/ and enter `gifs.example.com`
+
+### 2b. Better Test: Use Actual Matrix Clients
+
+The best way to test is with real Matrix clients:
+
+1. **Get an MXC URI** for one of your public GIFs:
+   ```
+   mxc://gifs.example.com/50d66383-21a1-4943-81eb-25cda2ac2e9d
+   ```
+
+2. **Send it in a Matrix room** using Element, Gomuks, or any Matrix client
+
+3. **Verify the image loads** - If it displays, federation is working!
+
+This tests the actual use case, not theoretical federation APIs.
 
 ### 3. Test Media Download
 
