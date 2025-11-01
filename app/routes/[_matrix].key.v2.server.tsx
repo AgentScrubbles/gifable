@@ -16,9 +16,11 @@ export async function loader({ request }: LoaderArgs) {
   const appUrl = envServer.appUrl;
   const serverName = new URL(appUrl).hostname;
 
-  // Generate a stable "key ID" based on server name
-  // This isn't a real signing key since we're not doing actual federation
-  const keyId = `ed25519:${serverName.replace(/\./g, "_")}`;
+  // Use a valid Ed25519 public key for testing
+  // This is a dummy key - we don't actually sign anything since we're media-only
+  // Generated from: crypto.generateKeyPairSync('ed25519').publicKey.export({type: 'spki', format: 'der'})
+  // then extracted the 32-byte public key portion and base64-encoded it
+  const dummyKey = "nH3NPI3L3xDldc4FRN+RIjMEtWLhOTfaZ1xtO1zkJ2w=";
 
   return json(
     {
@@ -26,8 +28,8 @@ export async function loader({ request }: LoaderArgs) {
       old_verify_keys: {},
       valid_until_ts: Date.now() + (365 * 24 * 60 * 60 * 1000), // Valid for 1 year
       verify_keys: {
-        [keyId]: {
-          key: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", // Dummy key
+        "ed25519:auto": {
+          key: dummyKey,
         },
       },
     },
