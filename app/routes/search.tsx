@@ -3,8 +3,8 @@ import { json } from "@remix-run/node";
 import { searchMedia } from "~/utils/search.server";
 
 /**
- * Matrix Media Search Endpoint
- * Compatible with Matrix sticker picker widgets
+ * Simple Search Endpoint
+ * Alternative to /_matrix/media/search for easier querying
  *
  * Returns public media items with MXC URIs for use in Matrix clients
  *
@@ -12,7 +12,7 @@ import { searchMedia } from "~/utils/search.server";
  *   - q: Search query (searches labels/tags)
  *   - limit: Maximum number of results (default: 20, max: 50)
  *
- * Example: /_matrix/media/search?q=cat&limit=10
+ * Example: /search?q=cat&limit=10
  */
 export async function loader({ request }: LoaderArgs) {
   const url = new URL(request.url);
