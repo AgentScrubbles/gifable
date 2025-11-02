@@ -4,6 +4,7 @@ import { db } from "~/utils/db.server";
 import { media } from "~/db/schema";
 import { eq } from "drizzle-orm";
 import { storage } from "~/utils/s3-storage.server";
+import crypto from "crypto";
 
 /**
  * Matrix Federation API - Thumbnail Download Endpoint
@@ -12,9 +13,44 @@ import { storage } from "~/utils/s3-storage.server";
  * This is the server-to-server federation endpoint for thumbnail downloads.
  * Note: No serverName in path - federation requests are already directed at this server.
  *
+ * Federation endpoints MUST return multipart/mixed responses with:
+ * 1. Metadata part (JSON with Content-Type: application/json)
+ * 2. Media part (binary data with appropriate image content type)
+ *
  * Falls back to original image if no thumbnail exists.
  * Only serves public media.
  */
+
+function createMultipartResponse(mediaBuffer: Buffer, contentType: string): Response {
+  const boundary = crypto.randomBytes(16).toString('hex');
+
+  // Build multipart response manually
+  const parts: Buffer[] = [];
+
+  // Part 1: Metadata (empty JSON object)
+  parts.push(Buffer.from(`--${boundary}\r\n`));
+  parts.push(Buffer.from(`Content-Type: application/json\r\n\r\n`));
+  parts.push(Buffer.from(`{}\r\n`));
+
+  // Part 2: Media data
+  parts.push(Buffer.from(`--${boundary}\r\n`));
+  parts.push(Buffer.from(`Content-Type: ${contentType}\r\n\r\n`));
+  parts.push(mediaBuffer);
+  parts.push(Buffer.from(`\r\n`));
+
+  // End boundary
+  parts.push(Buffer.from(`--${boundary}--\r\n`));
+
+  const responseBody = Buffer.concat(parts);
+
+  return new Response(responseBody, {
+    headers: {
+      "Content-Type": `multipart/mixed; boundary=${boundary}`,
+      "Cache-Control": "public, max-age=86400",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
+}
 export async function loader({ request, params }: LoaderArgs) {
   const { mediaId } = params;
 
@@ -113,13 +149,8 @@ export async function loader({ request, params }: LoaderArgs) {
     }
     const buffer = Buffer.concat(chunks);
 
-    return new Response(buffer, {
-      headers: {
-        "Content-Type": contentType,
-        "Cache-Control": "public, max-age=86400",
-        "Access-Control-Allow-Origin": "*",
-      },
-    });
+    // Return multipart/mixed response (required for federation endpoints)
+    return createMultipartResponse(buffer, contentType);
   } catch (error) {
     console.error("Error fetching thumbnail from S3:", error);
     return json(
