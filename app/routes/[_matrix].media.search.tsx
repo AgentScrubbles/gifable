@@ -57,9 +57,6 @@ export async function loader({ request }: LoaderArgs) {
   const transformedResults = results.map((item) => {
     const mxcUri = getMxcUri(item.id);
 
-    // Create thumbnail MXC URI if thumbnail exists
-    const thumbnailMxc = item.thumbnailUrl ? getMxcUri(item.id) + "/thumbnail" : mxcUri;
-
     return {
       // Matrix sticker picker format
       id: item.id,
@@ -74,8 +71,8 @@ export async function loader({ request }: LoaderArgs) {
         size: 0, // We don't store file size in this field currently
       },
 
-      // Thumbnail
-      thumbnail_mxc: thumbnailMxc,
+      // Thumbnail - uses the SAME MXC URI (Matrix uses different endpoints, not different URIs)
+      thumbnail_mxc: mxcUri,
       thumbnail_info: {
         w: item.width,
         h: item.height,
@@ -85,9 +82,9 @@ export async function loader({ request }: LoaderArgs) {
       // Additional metadata for compatibility
       tags: item.labels ? item.labels.split(",").map(t => t.trim()) : [],
 
-      // HTTP URLs for direct access (optional, for clients that don't support MXC yet)
-      http_url: `${appUrl}/_matrix/media/v3/download/${serverName}/${item.id}`,
-      thumbnail_url: `${appUrl}/_matrix/media/v3/thumbnail/${serverName}/${item.id}`,
+      // Simple HTTP URLs for direct access (for clients that don't support MXC yet)
+      http_url: `${appUrl}/images/${item.id}`,
+      thumbnail_url: `${appUrl}/images/${item.id}/thumbnail`,
     };
   });
 
