@@ -138,6 +138,7 @@ Gifable supports Matrix federation, allowing Matrix clients to use your GIFs via
    - `/.well-known/matrix/server` - Server discovery
    - `/_matrix/media/v3/download/{serverName}/{mediaId}` - Media downloads
    - `/_matrix/media/v3/thumbnail/{serverName}/{mediaId}` - Thumbnails
+   - `/_matrix/media/search?q=query&limit=20` - Search for GIFs (returns MXC URIs)
 
 ### Usage
 
@@ -162,6 +163,34 @@ APP_URL=http://localhost:3000 TEST_MEDIA_ID=your-media-id ./scripts/test-matrix-
 curl https://gifs.example.com/.well-known/matrix/server
 ```
 
+### Search API
+
+Search for GIFs and get results as MXC URIs for use in Matrix sticker pickers:
+
+```bash
+# Search for cat GIFs
+curl "https://gifs.example.com/_matrix/media/search?q=cat&limit=10"
+
+# Response includes MXC URIs ready to use
+{
+  "results": [
+    {
+      "id": "abc-123",
+      "mxc": "mxc://gifs.example.com/abc-123",
+      "body": "Cute cat GIF",
+      "tags": ["cat", "cute", "animal"],
+      "info": { "w": 640, "h": 480, "mimetype": "image/gif" },
+      ...
+    }
+  ],
+  "count": 10,
+  "query": "cat"
+}
+```
+
+Perfect for building custom Matrix sticker picker widgets!
+
 For detailed documentation, see:
 - [docs/matrix-federation.md](docs/matrix-federation.md) - Complete guide
 - [docs/matrix-federation-testing.md](docs/matrix-federation-testing.md) - Testing instructions
+- [docs/matrix-search-api.md](docs/matrix-search-api.md) - Search API reference
