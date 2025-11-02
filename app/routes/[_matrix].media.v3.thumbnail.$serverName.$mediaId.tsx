@@ -130,6 +130,7 @@ export async function loader({ request, params }: LoaderArgs) {
       headers: {
         "Location": thumbnailUrl,
         "Cache-Control": "public, max-age=86400",
+        "Access-Control-Allow-Origin": "*",
       },
     });
   }

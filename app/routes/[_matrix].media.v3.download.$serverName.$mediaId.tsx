@@ -131,6 +131,7 @@ export async function loader({ request, params }: LoaderArgs) {
       headers: {
         "Location": mediaItem.url,
         "Cache-Control": "public, max-age=86400",
+        "Access-Control-Allow-Origin": "*",
       },
     });
   }

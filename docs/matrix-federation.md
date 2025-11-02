@@ -151,7 +151,9 @@ This is useful for:
 - **Only public media** is accessible via Matrix federation
 - Private media returns 404 errors (not 403) to avoid leaking existence
 - Server name validation prevents serving media for other domains
-- CORS headers allow cross-origin access for federation
+- **CORS headers** allow cross-origin access for federation
+  - All endpoints include `Access-Control-Allow-Origin: *`
+  - **Important:** Even 308 redirects include CORS headers (required for browser fetch)
 
 ## Troubleshooting
 
@@ -177,6 +179,33 @@ This is useful for:
 1. Is your S3 bucket publicly accessible (or signed URLs enabled)?
 2. Are the S3 URLs correct in your database?
 3. Are there CORS issues with your S3 bucket?
+
+### CORS Errors with 308 Redirects
+
+If you see errors like:
+```
+Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource
+(Reason: CORS header 'Access-Control-Allow-Origin' missing). Status code: 308
+```
+
+**This is fixed in the latest version!** The 308 redirect responses now include CORS headers.
+
+**If you're still seeing this:**
+1. Deploy the latest code with CORS headers on redirects
+2. Check that your S3 bucket has CORS configured:
+   ```json
+   {
+     "CORSRules": [
+       {
+         "AllowedOrigins": ["*"],
+         "AllowedMethods": ["GET", "HEAD"],
+         "AllowedHeaders": ["*"],
+         "MaxAgeSeconds": 3600
+       }
+     ]
+   }
+   ```
+3. Verify headers with: `curl -I https://gifs.example.com/_matrix/media/v3/thumbnail/...`
 
 ## References
 
