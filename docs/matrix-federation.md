@@ -55,13 +55,13 @@ curl https://gifs.example.com/_matrix/key/v2/server
 **Media Download:**
 ```bash
 curl https://gifs.example.com/_matrix/media/v3/download/gifs.example.com/{mediaId}
-# Returns: The media file or a 308 redirect to S3
+# Returns: The media file (proxied through your server with CORS headers)
 ```
 
 **Thumbnail Download:**
 ```bash
 curl https://gifs.example.com/_matrix/media/v3/thumbnail/gifs.example.com/{mediaId}
-# Returns: The thumbnail file or a 308 redirect to S3
+# Returns: The thumbnail file (proxied through your server with CORS headers)
 ```
 
 ## Usage in Code
@@ -124,27 +124,31 @@ Similar to [maunium-stickerpicker](https://github.com/maunium/stickerpicker), yo
 
 ## Performance & Caching
 
-### Redirect Mode (Default)
+### Proxy Mode (Default)
 
-By default, Gifable returns HTTP 308 redirects to the S3 URLs. This means:
+Gifable proxies all media through your server (no redirects). This approach:
 
-- Matrix homeservers fetch directly from S3
-- Reduced bandwidth usage on your Gifable server
-- Better performance for end users
-- S3's CDN and caching is utilized
+- ✅ **Full CORS control** - Your server controls all headers
+- ✅ **No S3 CORS config needed** - Works regardless of S3 bucket settings
+- ✅ **Matrix compatible** - Avoids CORS issues with redirects
+- ✅ **Bandwidth monitoring** - Track all media requests
+- ✅ **Future flexibility** - Can add caching, rate limiting, etc.
 
-### Proxy Mode
+### Bandwidth Considerations
 
-If a client sets `allow_redirect=false`, Gifable will proxy the content:
+Since media is proxied through your server:
+- Your server handles the bandwidth (not S3 directly)
+- Consider adding caching middleware for frequently accessed media
+- HTTP caching headers are set (`Cache-Control: public, max-age=86400`)
+- Matrix homeservers will cache media on their end
 
-```bash
-curl "https://gifs.example.com/_matrix/media/v3/download/gifs.example.com/{mediaId}?allow_redirect=false"
-```
+### Future Optimization
 
-This is useful for:
-- Clients that don't support redirects
-- Additional access control or logging
-- Bandwidth monitoring
+For high-traffic deployments, consider:
+- Adding a CDN in front of your server
+- Implementing Redis/memory cache for hot media
+- Using nginx proxy caching
+- Monitoring bandwidth usage
 
 ## Security
 
@@ -173,39 +177,17 @@ This is useful for:
 3. Is the `.well-known` endpoint returning JSON?
 4. Are there any firewall or proxy issues?
 
-### Redirects Not Working
+### CORS Errors
 
-**Check:**
-1. Is your S3 bucket publicly accessible (or signed URLs enabled)?
-2. Are the S3 URLs correct in your database?
-3. Are there CORS issues with your S3 bucket?
+If you see CORS errors in Matrix clients:
 
-### CORS Errors with 308 Redirects
+**This should not happen with the current implementation!** All media is proxied through your server with proper CORS headers.
 
-If you see errors like:
-```
-Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource
-(Reason: CORS header 'Access-Control-Allow-Origin' missing). Status code: 308
-```
-
-**This is fixed in the latest version!** The 308 redirect responses now include CORS headers.
-
-**If you're still seeing this:**
-1. Deploy the latest code with CORS headers on redirects
-2. Check that your S3 bucket has CORS configured:
-   ```json
-   {
-     "CORSRules": [
-       {
-         "AllowedOrigins": ["*"],
-         "AllowedMethods": ["GET", "HEAD"],
-         "AllowedHeaders": ["*"],
-         "MaxAgeSeconds": 3600
-       }
-     ]
-   }
-   ```
-3. Verify headers with: `curl -I https://gifs.example.com/_matrix/media/v3/thumbnail/...`
+**If you're still seeing CORS errors:**
+1. Verify you're running the latest code
+2. Check headers with: `curl -I https://gifs.example.com/_matrix/media/v3/thumbnail/...`
+3. Look for `access-control-allow-origin: *` in the response
+4. Check your reverse proxy (nginx, Cloudflare) isn't stripping CORS headers
 
 ## References
 

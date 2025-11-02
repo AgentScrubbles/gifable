@@ -124,6 +124,7 @@ Gifable supports Matrix federation, allowing Matrix clients to use your GIFs via
 - Matrix homeservers fetch media via standard Matrix endpoints
 - No duplicates - the same GIF = the same MXC URI across all Matrix rooms
 - Homeservers cache media and can independently manage cleanup
+- All media is proxied through your server with proper CORS headers (no S3 redirects)
 
 ### Setup
 

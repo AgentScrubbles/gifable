@@ -33,37 +33,36 @@ else
 fi
 echo ""
 
-# Test 2: Media download (redirect mode)
-echo "Test 2: Media Download (Redirect Mode)"
-echo "---------------------------------------"
+# Test 2: Media download
+echo "Test 2: Media Download (Proxied)"
+echo "---------------------------------"
 http_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/_matrix/media/v3/download/${SERVER_NAME}/${TEST_MEDIA_ID}")
 echo "HTTP Status: $http_code"
-if [ "$http_code" = "308" ] || [ "$http_code" = "200" ]; then
-  echo -e "${GREEN}✅ PASS${NC}: Media download working (HTTP $http_code)"
+if [ "$http_code" = "200" ]; then
+  echo -e "${GREEN}✅ PASS${NC}: Media download working (proxied through server)"
 else
   echo -e "${RED}❌ FAIL${NC}: Unexpected HTTP code: $http_code"
 fi
 echo ""
 
-# Test 3: Media download (proxy mode)
-echo "Test 3: Media Download (Proxy Mode)"
-echo "------------------------------------"
-http_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/_matrix/media/v3/download/${SERVER_NAME}/${TEST_MEDIA_ID}?allow_redirect=false")
-echo "HTTP Status: $http_code"
-if [ "$http_code" = "200" ]; then
-  echo -e "${GREEN}✅ PASS${NC}: Media download proxy mode working"
+# Test 3: CORS headers on media download
+echo "Test 3: CORS Headers on Media"
+echo "------------------------------"
+cors_header=$(curl -s -I "$BASE_URL/_matrix/media/v3/download/${SERVER_NAME}/${TEST_MEDIA_ID}" | grep -i "access-control-allow-origin")
+if echo "$cors_header" | grep -q "*"; then
+  echo -e "${GREEN}✅ PASS${NC}: CORS headers present"
 else
-  echo -e "${RED}❌ FAIL${NC}: Unexpected HTTP code: $http_code"
+  echo -e "${RED}❌ FAIL${NC}: CORS headers missing"
 fi
 echo ""
 
 # Test 4: Thumbnail endpoint
-echo "Test 4: Thumbnail Download"
-echo "--------------------------"
+echo "Test 4: Thumbnail Download (Proxied)"
+echo "-------------------------------------"
 http_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/_matrix/media/v3/thumbnail/${SERVER_NAME}/${TEST_MEDIA_ID}")
 echo "HTTP Status: $http_code"
-if [ "$http_code" = "308" ] || [ "$http_code" = "200" ]; then
-  echo -e "${GREEN}✅ PASS${NC}: Thumbnail download working (HTTP $http_code)"
+if [ "$http_code" = "200" ]; then
+  echo -e "${GREEN}✅ PASS${NC}: Thumbnail download working (proxied through server)"
 else
   echo -e "${RED}❌ FAIL${NC}: Unexpected HTTP code: $http_code"
 fi

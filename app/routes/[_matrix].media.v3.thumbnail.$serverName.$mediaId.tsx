@@ -94,10 +94,6 @@ export async function loader({ request, params }: LoaderArgs) {
   // Use thumbnail URL if available, otherwise use original image
   const thumbnailUrl = mediaItem.thumbnailUrl || mediaItem.url;
 
-  // Check if client supports redirects
-  const url = new URL(request.url);
-  const allowRedirect = url.searchParams.get("allow_redirect") !== "false";
-
   // Get the S3 storage client
   const s3 = storage();
   const filename = s3.getFilenameFromURL(thumbnailUrl);
@@ -123,19 +119,7 @@ export async function loader({ request, params }: LoaderArgs) {
                      ext === 'png' ? 'image/png' :
                      'image/jpeg';
 
-  // If redirect is allowed, return 308 redirect to S3 URL
-  if (allowRedirect) {
-    return new Response(null, {
-      status: 308,
-      headers: {
-        "Location": thumbnailUrl,
-        "Cache-Control": "public, max-age=86400",
-        "Access-Control-Allow-Origin": "*",
-      },
-    });
-  }
-
-  // Otherwise, proxy the content through our server
+  // Proxy the content through our server (no redirects for Matrix compatibility)
   const minioClient = (s3 as any).minioClient;
   const bucket = (s3 as any).bucket;
   const filePath = s3.makeFilePath(filename);

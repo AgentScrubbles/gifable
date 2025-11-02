@@ -24,16 +24,16 @@ All Matrix federation endpoints are implemented and cryptographically valid.
 ### 3. Media Download
 - **URL:** `/_matrix/media/v3/download/{serverName}/{mediaId}`
 - **Purpose:** Download media files via MXC URIs
-- **Modes:**
-  - Redirect (default): Returns 308 to S3 URL
-  - Proxy: Streams content through server
+- **Mode:** Proxies all content through server (no redirects)
+- **CORS:** Full CORS headers on all responses
 - **Security:** Only serves public media
 
 ### 4. Thumbnail Download
 - **URL:** `/_matrix/media/v3/thumbnail/{serverName}/{mediaId}`
 - **Purpose:** Download thumbnail previews
-- **Modes:** Same as media download
+- **Mode:** Proxies all content through server (no redirects)
 - **Fallback:** Uses original image if no thumbnail exists
+- **CORS:** Full CORS headers on all responses
 
 ### 5. Federation Version
 - **URL:** `/_matrix/federation/v1/version`
