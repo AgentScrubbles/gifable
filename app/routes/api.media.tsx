@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 
 import { db } from "~/utils/db.server";
 import { getFullProxyImageUrl, getFullProxyThumbnailUrl } from "~/utils/media.server";
+import { extractApiKeyFromRequest, validateApiKey } from "~/utils/api-keys.server";
 
 import { unauthorized } from "remix-utils";
 
@@ -13,14 +14,30 @@ export async function loader({ request }: LoaderArgs) {
   }
 
   const token = auth.replace("Bearer ", "");
-  const [user] = await db.user.findMany({
-    where: { apiToken: token },
-    select: { id: true },
-  });
 
-  if (!user) {
+  // Try new API key system first
+  let userId: string | null = null;
+  if (token.startsWith("gbl_")) {
+    const result = await validateApiKey(token);
+    if (result) {
+      userId = result.user.id;
+    }
+  } else {
+    // Fall back to legacy apiToken system
+    const [user] = await db.user.findMany({
+      where: { apiToken: token },
+      select: { id: true },
+    });
+    if (user) {
+      userId = user.id;
+    }
+  }
+
+  if (!userId) {
     return unauthorized({ message: "Unauthorized" });
   }
+
+  const user = { id: userId };
 
   const params = new URLSearchParams(request.url.split("?")[1]);
   const where: Prisma.MediaWhereInput = { userId: user.id };

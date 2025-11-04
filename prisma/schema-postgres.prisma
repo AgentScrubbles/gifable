@@ -36,9 +36,24 @@ model User {
   username     String   @unique
   passwordHash String
   medias       Media[]
+  apiKeys      ApiKey[]
   isAdmin      Boolean  @default(false)
   lastLogin    DateTime?
   apiToken     String?
   preferredLabels String?
   theme        String?
+}
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  name        String
+  key         String    @unique
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enabled     Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime?
+
+  @@index([key])
+  @@index([userId])
 }

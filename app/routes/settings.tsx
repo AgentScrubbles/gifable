@@ -23,6 +23,8 @@ import {
   APITokenForm,
   API_TOKEN_INTENT,
 } from "~/components/APITokenForm";
+import { APIKeysManager } from "~/components/APIKeysManager";
+import { listApiKeys } from "~/utils/api-keys.server";
 import { UserMangement } from "~/components/UserManagement";
 import type { Theme } from "~/components/ThemeStyles";
 
@@ -67,8 +69,11 @@ export async function loader({ request }: LoaderArgs) {
     },
   });
 
+  const apiKeys = await listApiKeys(userId);
+
   return json({
     user,
+    apiKeys,
     users: user?.isAdmin
       ? await db.user.findMany({
           select: {
@@ -109,7 +114,7 @@ export default function AdminRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actionData]);
 
-  const { user, users } = data;
+  const { user, users, apiKeys } = data;
   return (
     <div>
       <h1>Settings</h1>
@@ -123,7 +128,22 @@ export default function AdminRoute() {
 
       <ChangePasswordForm />
 
-      <APITokenForm apiToken={apiToken} />
+      <APIKeysManager initialApiKeys={apiKeys} />
+
+      {apiToken && (
+        <details style={{ marginTop: "2rem" }}>
+          <summary>
+            <strong>Legacy API Token (Deprecated)</strong>
+          </summary>
+          <div style={{ padding: "1rem 0" }}>
+            <p style={{ color: "#856404", background: "#fff3cd", padding: "0.75rem", borderRadius: "4px" }}>
+              ⚠️ You have an old-style API token. Please migrate to the new API Keys system above.
+              The legacy token will continue to work but may be removed in a future update.
+            </p>
+            <APITokenForm apiToken={apiToken} />
+          </div>
+        </details>
+      )}
 
       {user?.isAdmin ? (
         <section>
