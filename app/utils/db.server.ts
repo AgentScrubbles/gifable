@@ -24,7 +24,11 @@ const enableLogging = process.env.DEBUG?.includes("db") || process.env.DEBUG?.in
 // Singleton pattern - prevent multiple connections in development
 if (process.env.NODE_ENV === "production") {
   if (isPostgres) {
-    const client = postgres(databaseUrl);
+    const client = postgres(databaseUrl, {
+      max: 10, // Limit pool size for production
+      idle_timeout: 20,
+      connect_timeout: 10,
+    });
     db = drizzlePostgres(client, { schema, logger: enableLogging });
   } else {
     const sqliteUrl = databaseUrl.replace("file:", "");
@@ -34,7 +38,9 @@ if (process.env.NODE_ENV === "production") {
 } else {
   if (!global.__db) {
     if (isPostgres) {
-      const client = postgres(databaseUrl);
+      const client = postgres(databaseUrl, {
+        max: 5, // Lower limit for development
+      });
       global.__db = drizzlePostgres(client, { schema, logger: enableLogging });
     } else {
       const sqliteUrl = databaseUrl.replace("file:", "");

@@ -19,8 +19,11 @@ if (!databaseUrl) {
 const isPostgres = databaseUrl.startsWith("postgres");
 
 let db: any;
+let client: ReturnType<typeof postgres> | null = null;
 if (isPostgres) {
-  const client = postgres(databaseUrl);
+  client = postgres(databaseUrl, {
+    max: 1, // Only need one connection for seeding
+  });
   db = drizzlePostgres(client, { schema });
 } else {
   const sqliteUrl = databaseUrl.replace("file:", "");
@@ -78,6 +81,10 @@ main()
     console.error("Error in seed-admin:", e);
     process.exit(1);
   })
-  .finally(() => {
+  .finally(async () => {
+    // Close postgres connection if it exists
+    if (client) {
+      await client.end();
+    }
     process.exit(0);
   });
