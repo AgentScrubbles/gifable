@@ -66,6 +66,7 @@ export async function loader({ request }: LoaderArgs) {
       apiToken: true,
       preferredLabels: true,
       theme: true,
+      giphyApiKey: true,
     },
   });
 
@@ -123,6 +124,7 @@ export default function AdminRoute() {
         defaultValues={{
           preferredLabels: user?.preferredLabels || "",
           theme: (user?.theme as Theme) || "system",
+          giphyApiKey: user?.giphyApiKey || "",
         }}
       />
 

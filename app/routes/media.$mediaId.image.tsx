@@ -3,10 +3,43 @@ import { notFound, forbidden } from "remix-utils";
 import { db } from "~/utils/db.server";
 import { storage } from "~/utils/s3-storage.server";
 import { getUser } from "~/utils/session.server";
+import { isGiphyId } from "~/utils/giphy.server";
+import { streamGiphyImage } from "~/utils/giphy-fetch.server";
+import { trackMediaView } from "~/utils/analytics.server";
 
 export async function loader({ request, params }: LoaderArgs) {
+  const mediaId = params.mediaId!;
+
+  // Get user for analytics and authorization
+  const user = await getUser(request);
+  const userAgent = request.headers.get("User-Agent") || undefined;
+
+  // Track view asynchronously (don't await)
+  trackMediaView(mediaId, user?.id, userAgent);
+
+  // Handle Giphy IDs
+  if (isGiphyId(mediaId)) {
+    // User must have a Giphy API key to proxy Giphy images
+    if (!user) {
+      throw forbidden({ message: "Authentication required for Giphy images" });
+    }
+
+    const userWithKey = await db.user.findUnique({
+      where: { id: user.id },
+      select: { giphyApiKey: true },
+    });
+
+    if (!userWithKey?.giphyApiKey) {
+      throw forbidden({ message: "Giphy API key required to view Giphy images" });
+    }
+
+    // Stream Giphy image (streamGiphyImage will extract the ID)
+    return streamGiphyImage(userWithKey.giphyApiKey, mediaId, "original");
+  }
+
+  // Handle local media
   const media = await db.media.findUnique({
-    where: { id: params.mediaId },
+    where: { id: mediaId },
   });
 
   if (!media) {
@@ -14,7 +47,6 @@ export async function loader({ request, params }: LoaderArgs) {
   }
 
   // Check authorization: must be public OR user owns it OR user is admin
-  const user = await getUser(request);
   const isOwner = user && media.userId === user.id;
   const isAdmin = user && user.isAdmin;
 

@@ -258,11 +258,11 @@ export function APIKeysManager({ initialApiKeys }: APIKeysManagerProps) {
             <li>
               <code>GET /search?q=query</code> - <strong>Simple search endpoint (recommended for beginners)</strong>.
               Returns JSON with public media matching your query. Supports <code>limit</code> parameter (default 50, max 100).
-              Works with or without authentication.
+              Works with or without authentication. Add <code>&external=true</code> to include Giphy results (requires Giphy API key in settings).
             </li>
             <li>
               <code>GET /api/media?search=query</code> - API endpoint that returns JSON data.
-              Search your media with optional label filtering. Requires authentication.
+              Search your media with optional label filtering. Requires authentication. Add <code>&external=true</code> to include Giphy results (requires Giphy API key in settings).
             </li>
           </ul>
 
@@ -313,6 +313,19 @@ export function APIKeysManager({ initialApiKeys }: APIKeysManagerProps) {
               {`https://your-domain.com/search?q=cat&api_key=gbl_your_key_here`}
             </code>
           </pre>
+
+          <p><strong>Including Giphy Results (requires Giphy API key in settings):</strong></p>
+          <pre style={{ background: "#f5f5f5", padding: "0.5rem" }}>
+            <code>
+              {`curl -H "Authorization: Bearer gbl_your_key_here" \\
+  "https://your-domain.com/search?q=cat&external=true"`}
+            </code>
+          </pre>
+          <p>
+            When <code>external=true</code> is used, the response includes both your local media and Giphy results
+            (if you have a Giphy API key configured). Giphy IDs are prefixed with <code>giphy_</code> to distinguish them.
+            The response will include attribution metadata when Giphy results are present.
+          </p>
 
           <p style={{ marginTop: "1rem", color: "#856404", background: "#fff3cd", padding: "0.5rem", borderRadius: "4px" }}>
             <strong>⚠️ Security Note:</strong> When using the <code>api_key</code> query parameter,

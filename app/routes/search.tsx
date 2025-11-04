@@ -1,8 +1,9 @@
 import type { LoaderArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { searchMedia } from "~/utils/search.server";
+import { searchMedia, searchWithExternal } from "~/utils/search.server";
 import { getUserIdFromRequestWithApiKey } from "~/utils/api-keys.server";
 import { getUserId } from "~/utils/session.server";
+import { db } from "~/utils/db.server";
 
 /**
  * Simple search endpoint for public media
@@ -10,6 +11,7 @@ import { getUserId } from "~/utils/session.server";
  * Query params:
  *   - q or query: search query
  *   - limit: max results (default 50, max 100)
+ *   - external: true to include Giphy results (requires user to have Giphy API key)
  *   - api_key: optional API key for authentication
  */
 export async function loader({ request }: LoaderArgs) {
@@ -22,6 +24,7 @@ export async function loader({ request }: LoaderArgs) {
   const url = new URL(request.url);
   const query = url.searchParams.get("q") || url.searchParams.get("query") || "";
   const limitParam = url.searchParams.get("limit");
+  const external = url.searchParams.get("external") === "true";
   let limit = 50; // default
 
   if (limitParam) {
@@ -31,7 +34,21 @@ export async function loader({ request }: LoaderArgs) {
     }
   }
 
-  const results = await searchMedia(query, limit);
+  // Check if external search is requested and user has Giphy API key
+  let giphyApiKey: string | null = null;
+  if (external && userId) {
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { giphyApiKey: true },
+    });
+    giphyApiKey = user?.giphyApiKey || null;
+  }
+
+  // Use searchWithExternal if external flag is set, otherwise use regular search
+  const results =
+    external && giphyApiKey
+      ? await searchWithExternal(query, limit, giphyApiKey)
+      : await searchMedia(query, limit);
 
   return json(results, {
     headers: {

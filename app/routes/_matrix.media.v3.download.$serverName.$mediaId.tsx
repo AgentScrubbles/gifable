@@ -4,6 +4,9 @@ import { notFound } from "remix-utils";
 import { db } from "~/utils/db.server";
 import { storage } from "~/utils/s3-storage.server";
 import envServer from "~/utils/env.server";
+import { isGiphyId, extractGiphyId } from "~/utils/giphy.server";
+import { fetchGiphyImage } from "~/utils/giphy-fetch.server";
+import { trackMediaView } from "~/utils/analytics.server";
 
 /**
  * Matrix Media Download Endpoint
@@ -14,11 +17,17 @@ import envServer from "~/utils/env.server";
  * mxc://<server-name>/<media-id>
  *
  * Supports two modes:
- * - Redirect mode (allow_redirect=true): Returns 308 redirect to S3 URL
+ * - Redirect mode (allow_redirect=true): Returns 308 redirect to S3 URL (or Giphy URL)
  * - Proxy mode (allow_redirect=false): Streams content through the server
+ *
+ * Also supports Giphy IDs (prefixed with "giphy_") - these are always proxied to comply with federation
  */
 export async function loader({ request, params }: LoaderArgs) {
   const { serverName, mediaId } = params;
+
+  // Track view asynchronously (don't await)
+  const userAgent = request.headers.get("User-Agent") || undefined;
+  trackMediaView(mediaId!, undefined, userAgent);
 
   // Validate server name matches our instance
   const appUrl = envServer.appUrl;
@@ -55,7 +64,64 @@ export async function loader({ request, params }: LoaderArgs) {
     );
   }
 
-  // Look up the media
+  // Handle Giphy IDs - these are always proxied for Matrix federation
+  if (isGiphyId(mediaId)) {
+    const giphyId = extractGiphyId(mediaId);
+
+    // Find any user with a Giphy API key for federation proxying
+    // (Matrix federation is public, so we use any available key)
+    const userWithKey = await db.user.findFirst({
+      where: {
+        giphyApiKey: { not: null },
+      },
+      select: { giphyApiKey: true },
+    });
+
+    if (!userWithKey?.giphyApiKey) {
+      return json(
+        {
+          errcode: "M_NOT_FOUND",
+          error: "Giphy integration not available",
+        },
+        {
+          status: 404,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
+    // Fetch and return Giphy image
+    try {
+      const imageResponse = await fetchGiphyImage(userWithKey.giphyApiKey, giphyId, "original");
+
+      // Return the image with proper headers
+      return new Response(imageResponse.body, {
+        headers: {
+          "Content-Type": imageResponse.headers.get("Content-Type") || "image/gif",
+          "Cache-Control": "public, max-age=86400",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching Giphy image:", error);
+      return json(
+        {
+          errcode: "M_UNKNOWN",
+          error: "Failed to fetch Giphy media",
+        },
+        {
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+  }
+
+  // Look up local media
   const media = await db.media.findUnique({
     where: { id: mediaId },
   });

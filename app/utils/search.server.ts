@@ -1,6 +1,7 @@
 import { db } from "~/utils/db.server";
 import { getMxcUri } from "~/utils/media.server";
 import envServer from "~/utils/env.server";
+import { searchGiphy, transformGiphyToGifable } from "~/utils/giphy.server";
 
 /**
  * Search public media items
@@ -73,4 +74,93 @@ export async function searchMedia(query: string, limit: number) {
     count: transformedResults.length,
     query: query,
   };
+}
+
+/**
+ * Search with external sources (Giphy) if enabled
+ */
+export async function searchWithExternal(
+  query: string,
+  limit: number,
+  giphyApiKey?: string | null
+): Promise<{
+  results: any[];
+  count: number;
+  query: string;
+  powered_by_giphy?: boolean;
+  attribution?: {
+    source: string;
+    required_text: string;
+  };
+}> {
+  // Always search local Gifable media
+  const localResults = await searchMedia(query, limit);
+
+  // If no Giphy API key, return only local results
+  if (!giphyApiKey) {
+    return localResults;
+  }
+
+  // Search Giphy
+  let giphyResults: any[] = [];
+  let giphyError = false;
+
+  try {
+    const giphyResponse = await searchGiphy(giphyApiKey, query, limit);
+    giphyResults = giphyResponse.data.map((gif: any) => {
+      const transformed = transformGiphyToGifable(gif);
+      const mxcUri = getMxcUri(transformed.id);
+      const appUrl = envServer.appUrl;
+
+      return {
+        id: transformed.id,
+        mxc: mxcUri,
+        body: transformed.altText || transformed.labels || "GIF",
+        info: {
+          w: transformed.width,
+          h: transformed.height,
+          mimetype: "image/gif",
+          size: transformed.size || 0,
+        },
+        thumbnail_mxc: mxcUri,
+        thumbnail_info: {
+          w: transformed.width,
+          h: transformed.height,
+          mimetype: "image/gif",
+        },
+        tags: transformed.labels
+          ? transformed.labels.split(",").map((t: string) => t.trim())
+          : [],
+        // Return Giphy's direct URLs for search (not proxied)
+        http_url: transformed._giphy.images.original_url,
+        thumbnail_url: transformed._giphy.images.thumbnail_url,
+        // Keep proxy URLs as backup
+        proxy_url: `${appUrl}/media/${transformed.id}/image`,
+        proxy_thumbnail_url: `${appUrl}/media/${transformed.id}/thumbnail`,
+      };
+    });
+  } catch (error) {
+    console.error("Error searching Giphy:", error);
+    giphyError = true;
+  }
+
+  // Combine results: local first, then Giphy
+  const combinedResults = [...localResults.results, ...giphyResults];
+
+  // Add attribution if Giphy results are included
+  const response: any = {
+    results: combinedResults,
+    count: combinedResults.length,
+    query: query,
+  };
+
+  if (giphyResults.length > 0) {
+    response.powered_by_giphy = true;
+    response.attribution = {
+      source: "GIPHY",
+      required_text: "Powered By GIPHY",
+    };
+  }
+
+  return response;
 }

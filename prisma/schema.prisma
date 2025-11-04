@@ -38,11 +38,13 @@ model User {
   passwordHash String
   medias       Media[]
   apiKeys      ApiKey[]
+  mediaViews   MediaView[]
   isAdmin      Boolean  @default(false)
   lastLogin    DateTime?
   apiToken     String?
   preferredLabels String?
   theme        String?
+  giphyApiKey  String?
 }
 
 model ApiKey {
@@ -57,4 +59,16 @@ model ApiKey {
 
   @@index([key])
   @@index([userId])
+}
+
+model MediaView {
+  id        String   @id @default(uuid())
+  mediaId   String
+  viewedAt  DateTime @default(now())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userAgent String?
+
+  @@index([mediaId])
+  @@index([viewedAt])
 }

@@ -64,11 +64,11 @@ export async function validateApiKey(
 
   try {
     const apiKey = await db.apiKey.findUnique({
-      where: { key, enabled: true },
+      where: { key },
       include: { user: true },
     });
 
-    if (!apiKey) {
+    if (!apiKey || !apiKey.enabled) {
       return null;
     }
 
