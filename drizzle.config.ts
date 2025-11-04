@@ -14,14 +14,10 @@ const isPostgres = databaseUrl.startsWith("postgres");
 export default {
   schema: "./app/db/schema.ts",
   out: "./drizzle",
-  driver: isPostgres ? "pg" : "better-sqlite",
-  dbCredentials: isPostgres
-    ? {
-        connectionString: databaseUrl,
-      }
-    : {
-        url: databaseUrl.replace("file:", ""),
-      },
+  dialect: isPostgres ? "postgresql" : "sqlite",
+  dbCredentials: {
+    url: isPostgres ? databaseUrl : databaseUrl.replace("file:", ""),
+  },
   verbose: true,
   strict: true,
 } satisfies Config;

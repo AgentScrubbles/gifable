@@ -16,20 +16,32 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   const user = await requireUser(request);
 
-  const keys = await db
-    .select({
-      id: apiKeys.id,
-      name: apiKeys.name,
-      key: apiKeys.key,
-      enabled: apiKeys.enabled,
-      createdAt: apiKeys.createdAt,
-      lastUsedAt: apiKeys.lastUsedAt,
-    })
-    .from(apiKeys)
-    .where(eq(apiKeys.userId, user.id))
-    .orderBy(desc(apiKeys.createdAt));
+  try {
+    const keys = await db
+      .select({
+        id: apiKeys.id,
+        name: apiKeys.name,
+        key: apiKeys.key,
+        enabled: apiKeys.enabled,
+        createdAt: apiKeys.createdAt,
+        lastUsedAt: apiKeys.lastUsedAt,
+      })
+      .from(apiKeys)
+      .where(eq(apiKeys.userId, user.id))
+      .orderBy(desc(apiKeys.createdAt));
 
-  return json({ keys });
+    return json({ keys });
+  } catch (error: any) {
+    console.error("Error loading API keys:", error);
+    // If table doesn't exist, return empty array with helpful message
+    if (error?.code === "42P01" || error?.code === "SQLITE_ERROR") {
+      return json({
+        error: "API keys table not found. Please restart the container to run migrations.",
+        keys: []
+      });
+    }
+    return json({ error: "Failed to load API keys", keys: [] }, { status: 500 });
+  }
 }
 
 /**
@@ -44,71 +56,82 @@ export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   const action = formData.get("action");
 
-  // CREATE new API key
-  if (action === "create") {
-    const name = formData.get("name")?.toString() || null;
-    const key = generateApiKey();
+  try {
+    // CREATE new API key
+    if (action === "create") {
+      const name = formData.get("name")?.toString() || null;
+      const key = generateApiKey();
 
-    const [newKey] = await db
-      .insert(apiKeys)
-      .values({
-        userId: user.id,
-        key,
-        name,
-        enabled: true,
-      })
-      .returning();
+      const [newKey] = await db
+        .insert(apiKeys)
+        .values({
+          userId: user.id,
+          key,
+          name,
+          enabled: true,
+        })
+        .returning();
 
-    return json({
-      success: true,
-      key: newKey,
-      message: "API key created successfully"
-    });
-  }
-
-  // DISABLE API key
-  if (action === "disable") {
-    const keyId = formData.get("keyId")?.toString();
-    if (!keyId) {
-      return json({ error: "Key ID is required" }, { status: 400 });
+      return json({
+        success: true,
+        key: newKey,
+        message: "API key created successfully"
+      });
     }
 
-    await db
-      .update(apiKeys)
-      .set({ enabled: false })
-      .where(and(eq(apiKeys.id, keyId), eq(apiKeys.userId, user.id)));
+    // DISABLE API key
+    if (action === "disable") {
+      const keyId = formData.get("keyId")?.toString();
+      if (!keyId) {
+        return json({ error: "Key ID is required" }, { status: 400 });
+      }
 
-    return json({ success: true, message: "API key disabled successfully" });
-  }
+      await db
+        .update(apiKeys)
+        .set({ enabled: false })
+        .where(and(eq(apiKeys.id, keyId), eq(apiKeys.userId, user.id)));
 
-  // ENABLE API key
-  if (action === "enable") {
-    const keyId = formData.get("keyId")?.toString();
-    if (!keyId) {
-      return json({ error: "Key ID is required" }, { status: 400 });
+      return json({ success: true, message: "API key disabled successfully" });
     }
 
-    await db
-      .update(apiKeys)
-      .set({ enabled: true })
-      .where(and(eq(apiKeys.id, keyId), eq(apiKeys.userId, user.id)));
+    // ENABLE API key
+    if (action === "enable") {
+      const keyId = formData.get("keyId")?.toString();
+      if (!keyId) {
+        return json({ error: "Key ID is required" }, { status: 400 });
+      }
 
-    return json({ success: true, message: "API key enabled successfully" });
-  }
+      await db
+        .update(apiKeys)
+        .set({ enabled: true })
+        .where(and(eq(apiKeys.id, keyId), eq(apiKeys.userId, user.id)));
 
-  // DELETE API key
-  if (action === "delete") {
-    const keyId = formData.get("keyId")?.toString();
-    if (!keyId) {
-      return json({ error: "Key ID is required" }, { status: 400 });
+      return json({ success: true, message: "API key enabled successfully" });
     }
 
-    await db
-      .delete(apiKeys)
-      .where(and(eq(apiKeys.id, keyId), eq(apiKeys.userId, user.id)));
+    // DELETE API key
+    if (action === "delete") {
+      const keyId = formData.get("keyId")?.toString();
+      if (!keyId) {
+        return json({ error: "Key ID is required" }, { status: 400 });
+      }
 
-    return json({ success: true, message: "API key deleted successfully" });
+      await db
+        .delete(apiKeys)
+        .where(and(eq(apiKeys.id, keyId), eq(apiKeys.userId, user.id)));
+
+      return json({ success: true, message: "API key deleted successfully" });
+    }
+
+    return json({ error: "Invalid action" }, { status: 400 });
+  } catch (error: any) {
+    console.error("Error performing API key action:", error);
+    // If table doesn't exist, return helpful message
+    if (error?.code === "42P01" || error?.code === "SQLITE_ERROR") {
+      return json({
+        error: "API keys table not found. Please restart the container to run migrations."
+      }, { status: 500 });
+    }
+    return json({ error: "Failed to perform action" }, { status: 500 });
   }
-
-  return json({ error: "Invalid action" }, { status: 400 });
 }

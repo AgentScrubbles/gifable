@@ -5,7 +5,7 @@ echo "🚀 Starting Gifable..."
 
 # Run database migrations
 echo "📦 Running database migrations..."
-npx drizzle-kit push --force || {
+npx drizzle-kit push || {
   echo "⚠️  Migration failed, but continuing (may be up to date)..."
 }
 

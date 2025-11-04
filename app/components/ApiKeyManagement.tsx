@@ -18,12 +18,13 @@ type ApiKeysResponse = {
 };
 
 export function ApiKeyManagement() {
-  const fetcher = useFetcher<ApiKeysResponse>();
-  const actionFetcher = useFetcher<{ success?: boolean; key?: ApiKey; message?: string }>();
+  const fetcher = useFetcher<ApiKeysResponse | { error?: string }>();
+  const actionFetcher = useFetcher<{ success?: boolean; key?: ApiKey; message?: string; error?: string }>();
   const toast = useToast();
   const [newKeyName, setNewKeyName] = useState("");
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
   const [justCreatedKey, setJustCreatedKey] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Load API keys on mount
   useEffect(() => {
@@ -31,6 +32,13 @@ export function ApiKeyManagement() {
       fetcher.load("/api/api-keys");
     }
   }, [fetcher]);
+
+  // Check for load errors
+  useEffect(() => {
+    if (fetcher.data && "error" in fetcher.data && fetcher.data.error) {
+      setLoadError(fetcher.data.error);
+    }
+  }, [fetcher.data]);
 
   // Show toast when action completes
   useEffect(() => {
@@ -46,10 +54,12 @@ export function ApiKeyManagement() {
 
       // Reload the list
       fetcher.load("/api/api-keys");
+    } else if (actionFetcher.data?.error) {
+      toast(actionFetcher.data.error);
     }
   }, [actionFetcher.data]);
 
-  const keys = fetcher.data?.keys || [];
+  const keys = fetcher.data && "keys" in fetcher.data ? fetcher.data.keys : [];
 
   const handleCreateKey = (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,26 +120,36 @@ export function ApiKeyManagement() {
         Use the header <code>Authorization: Bearer YOUR_KEY</code> or <code>X-Api-Key: YOUR_KEY</code>.
       </p>
 
-      {/* Create new key form */}
-      <form onSubmit={handleCreateKey} style={{ marginBottom: "1rem" }}>
-        <label htmlFor="keyName">
-          Key Name (optional)
-          <input
-            id="keyName"
-            type="text"
-            value={newKeyName}
-            onChange={(e) => setNewKeyName(e.target.value)}
-            placeholder="e.g., Mobile App, CI/CD Pipeline"
-            maxLength={100}
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={actionFetcher.state !== "idle"}
-        >
-          {actionFetcher.state !== "idle" ? "Creating..." : "Create New API Key"}
-        </button>
-      </form>
+      {/* Show error if loading failed */}
+      {loadError && (
+        <div className="notice" style={{ background: "#f8d7da", borderColor: "#f5c6cb", color: "#721c24", marginBottom: "1rem" }}>
+          <strong>Error:</strong> {loadError}
+        </div>
+      )}
+
+      {/* Only show form if no load error */}
+      {!loadError && (
+        <>
+          {/* Create new key form */}
+          <form onSubmit={handleCreateKey} style={{ marginBottom: "1rem" }}>
+            <label htmlFor="keyName">
+              Key Name (optional)
+              <input
+                id="keyName"
+                type="text"
+                value={newKeyName}
+                onChange={(e) => setNewKeyName(e.target.value)}
+                placeholder="e.g., Mobile App, CI/CD Pipeline"
+                maxLength={100}
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={actionFetcher.state !== "idle"}
+            >
+              {actionFetcher.state !== "idle" ? "Creating..." : "Create New API Key"}
+            </button>
+          </form>
 
       {/* Show newly created key prominently */}
       {justCreatedKey && (
@@ -229,6 +249,8 @@ export function ApiKeyManagement() {
             </div>
           ))}
         </div>
+      )}
+        </>
       )}
     </fieldset>
   );
