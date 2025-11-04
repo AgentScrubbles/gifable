@@ -20,6 +20,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "node --require esbuild-register app/db/seed.ts",
+    "db:migrate:api-keys": "node migrate-api-keys.js",
     "build:seed-admin": "esbuild seed-admin.ts --bundle --platform=node --format=cjs --outfile=seed-admin.js --external:postgres --external:better-sqlite3 --external:drizzle-orm --external:bcryptjs --external:dotenv",
     "migrate:sqlite-to-postgres": "node scripts/migrate-sqlite-to-postgres.js"
   },

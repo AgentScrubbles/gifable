@@ -5,9 +5,7 @@ echo "🚀 Starting Gifable..."
 
 # Run database migrations
 echo "📦 Running database migrations..."
-npx drizzle-kit push || {
-  echo "⚠️  Migration failed, but continuing (may be up to date)..."
-}
+node ./migrate-api-keys.js
 
 # Seed admin user if configured
 echo "👤 Checking for admin user..."

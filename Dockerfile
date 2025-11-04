@@ -53,8 +53,6 @@ COPY --from=production-deps /app/node_modules /app/node_modules
 COPY --from=build /app/build /app/build
 COPY --from=build /app/public /app/public
 COPY --from=build /app/seed-admin.js /app/seed-admin.js
-COPY --from=build /app/drizzle.config.ts /app/drizzle.config.ts
-COPY --from=build /app/app/db/schema.ts /app/app/db/schema.ts
 ADD . .
 
 # Copy and prepare startup script
