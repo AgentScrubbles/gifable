@@ -4,7 +4,9 @@ import type { Prisma } from "@prisma/client";
 import { Link, useLoaderData, useSearchParams } from "@remix-run/react";
 
 import { db } from "~/utils/db.server";
-import { requireUserId } from "~/utils/session.server";
+import { requireUserId, getUserId } from "~/utils/session.server";
+import { getUserIdFromRequestWithApiKey } from "~/utils/api-keys.server";
+import { unauthorized } from "remix-utils";
 
 import MediaList, { loadMedia, MEDIA_LIST_LINKS } from "~/components/MediaList";
 import { getMediaLabels } from "~/utils/media.server";
@@ -56,7 +58,16 @@ export function meta({ location }: V2_MetaArgs<typeof loader>) {
 }
 
 export async function loader({ request }: LoaderArgs) {
-  const userId = await requireUserId(request);
+  // Support both session auth and API key auth
+  const userId = await getUserIdFromRequestWithApiKey(
+    request,
+    () => getUserId(request)
+  );
+
+  if (!userId) {
+    throw unauthorized({ message: "Authentication required" });
+  }
+
   const params = new URLSearchParams(request.url.split("?")[1]);
 
   const page = parseInt((params.get("page") || "1").trim(), 10);

@@ -19,8 +19,11 @@ export function generateApiKey(): string {
 }
 
 /**
- * Extract API key from request headers
- * Supports both "Authorization: Bearer <key>" and "X-Api-Key: <key>" formats
+ * Extract API key from request headers or query parameters
+ * Supports:
+ * - "Authorization: Bearer <key>" header
+ * - "X-Api-Key: <key>" header
+ * - "api_key=<key>" query parameter
  */
 export function extractApiKeyFromRequest(request: Request): string | null {
   // Check Authorization header (Bearer token)
@@ -36,6 +39,13 @@ export function extractApiKeyFromRequest(request: Request): string | null {
   const apiKeyHeader = request.headers.get("X-Api-Key");
   if (apiKeyHeader?.startsWith("gbl_")) {
     return apiKeyHeader;
+  }
+
+  // Check api_key query parameter
+  const url = new URL(request.url);
+  const apiKeyParam = url.searchParams.get("api_key");
+  if (apiKeyParam?.startsWith("gbl_")) {
+    return apiKeyParam;
   }
 
   return null;
@@ -106,6 +116,34 @@ export async function getUserFromRequestWithApiKey(
 
   const result = await validateApiKey(apiKey);
   return result?.user ?? null;
+}
+
+/**
+ * Get user ID from request - checks session first, then API key
+ * Returns null if neither auth method succeeds
+ */
+export async function getUserIdFromRequestWithApiKey(
+  request: Request,
+  getUserIdFromSession: () => Promise<string | null>
+): Promise<string | null> {
+  // First, try to get user ID from session
+  const sessionUserId = await getUserIdFromSession();
+  if (sessionUserId) {
+    return sessionUserId;
+  }
+
+  // If no session, try API key
+  if (!isApiKeyFeatureEnabled()) {
+    return null;
+  }
+
+  const apiKey = extractApiKeyFromRequest(request);
+  if (!apiKey) {
+    return null;
+  }
+
+  const result = await validateApiKey(apiKey);
+  return result?.user?.id ?? null;
 }
 
 /**

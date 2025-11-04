@@ -251,28 +251,74 @@ export function APIKeysManager({ initialApiKeys }: APIKeysManagerProps) {
           <h5>Endpoints</h5>
           <ul>
             <li>
-              <code>GET /api/media</code> - Search your media. Use the{" "}
-              <code>search</code> query parameter to filter by labels.
+              <code>GET /</code> or <code>GET /?search=query</code> - Main search page. Returns your media
+              with optional search filtering. Use <code>select=all</code> for all media or{" "}
+              <code>select=not-mine</code> for media from other users.
+            </li>
+            <li>
+              <code>GET /search?q=query</code> - <strong>Simple search endpoint (recommended for beginners)</strong>.
+              Returns JSON with public media matching your query. Supports <code>limit</code> parameter (default 50, max 100).
+              Works with or without authentication.
+            </li>
+            <li>
+              <code>GET /api/media?search=query</code> - API endpoint that returns JSON data.
+              Search your media with optional label filtering. Requires authentication.
             </li>
           </ul>
 
-          <h5>Authentication</h5>
-          <p>Include your API key in the request headers using one of these methods:</p>
-          <pre style={{ background: "#f5f5f5", padding: "0.5rem" }}>
+          <h5>Authentication Methods</h5>
+          <p>You can authenticate using any of these methods:</p>
+
+          <p><strong>1. Authorization Header (Recommended)</strong></p>
+          <pre style={{ background: "#f5f5f5", padding: "0.5rem", marginBottom: "0.5rem" }}>
             <code>Authorization: Bearer gbl_your_key_here</code>
           </pre>
-          <p>Or:</p>
-          <pre style={{ background: "#f5f5f5", padding: "0.5rem" }}>
+
+          <p><strong>2. X-Api-Key Header</strong></p>
+          <pre style={{ background: "#f5f5f5", padding: "0.5rem", marginBottom: "0.5rem" }}>
             <code>X-Api-Key: gbl_your_key_here</code>
           </pre>
 
-          <h5>Example Request</h5>
+          <p><strong>3. Query Parameter (Convenient for browser access)</strong></p>
+          <pre style={{ background: "#f5f5f5", padding: "0.5rem" }}>
+            <code>?api_key=gbl_your_key_here</code>
+          </pre>
+
+          <h5>Example Requests</h5>
+
+          <p><strong>Simple search (no auth required, returns public media):</strong></p>
+          <pre style={{ background: "#f5f5f5", padding: "0.5rem" }}>
+            <code>
+              {`curl "https://your-domain.com/search?q=cat&limit=20"`}
+            </code>
+          </pre>
+          <p>Or directly in your browser:</p>
+          <pre style={{ background: "#f5f5f5", padding: "0.5rem" }}>
+            <code>
+              {`https://your-domain.com/search?q=cat`}
+            </code>
+          </pre>
+
+          <p><strong>Using Authorization Header (for your private media):</strong></p>
           <pre style={{ background: "#f5f5f5", padding: "0.5rem" }}>
             <code>
               {`curl -H "Authorization: Bearer gbl_your_key_here" \\
   "https://your-domain.com/api/media?search=cat"`}
             </code>
           </pre>
+
+          <p><strong>Using Query Parameter (browser-friendly):</strong></p>
+          <pre style={{ background: "#f5f5f5", padding: "0.5rem" }}>
+            <code>
+              {`https://your-domain.com/search?q=cat&api_key=gbl_your_key_here`}
+            </code>
+          </pre>
+
+          <p style={{ marginTop: "1rem", color: "#856404", background: "#fff3cd", padding: "0.5rem", borderRadius: "4px" }}>
+            <strong>⚠️ Security Note:</strong> When using the <code>api_key</code> query parameter,
+            your API key will be visible in the URL. Only use this method in secure, trusted environments.
+            For programmatic access, prefer the Authorization header.
+          </p>
         </div>
       </details>
     </fieldset>
