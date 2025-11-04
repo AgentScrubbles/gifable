@@ -53,11 +53,17 @@ COPY --from=production-deps /app/node_modules /app/node_modules
 COPY --from=build /app/build /app/build
 COPY --from=build /app/public /app/public
 COPY --from=build /app/seed-admin.js /app/seed-admin.js
+COPY --from=build /app/drizzle.config.ts /app/drizzle.config.ts
+COPY --from=build /app/app/db/schema.ts /app/app/db/schema.ts
 ADD . .
+
+# Copy and prepare startup script
+COPY docker-start.sh /app/docker-start.sh
+RUN chmod +x /app/docker-start.sh
 
 LABEL org.opencontainers.image.source=https://github.com/pietvanzoen/gifable
 LABEL org.opencontainers.image.description="Gifable: A simple gif libary."
 LABEL org.opencontainers.image.licenses=MIT
 
 EXPOSE 3000
-CMD ["npm", "run", "start"]
+CMD ["/app/docker-start.sh"]

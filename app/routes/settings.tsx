@@ -25,8 +25,10 @@ import {
   APITokenForm,
   API_TOKEN_INTENT,
 } from "~/components/APITokenForm";
+import { ApiKeyManagement } from "~/components/ApiKeyManagement";
 import { UserMangement } from "~/components/UserManagement";
 import type { Theme } from "~/components/ThemeStyles";
+import { isApiKeyFeatureEnabled } from "~/utils/api-keys.server";
 
 export function meta() {
   return [{ title: makeTitle(["Settings"]) }];
@@ -81,6 +83,7 @@ export async function loader({ request }: LoaderArgs) {
           },
         })
       : null,
+    apiKeyFeatureEnabled: isApiKeyFeatureEnabled(),
   });
 }
 
@@ -111,7 +114,7 @@ export default function AdminRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actionData]);
 
-  const { user, users } = data;
+  const { user, users, apiKeyFeatureEnabled } = data;
   return (
     <div>
       <h1>Settings</h1>
@@ -126,6 +129,8 @@ export default function AdminRoute() {
       <ChangePasswordForm />
 
       <APITokenForm apiToken={apiToken} />
+
+      {apiKeyFeatureEnabled && <ApiKeyManagement />}
 
       {user?.isAdmin ? (
         <section>

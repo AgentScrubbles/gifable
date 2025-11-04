@@ -196,3 +196,114 @@ For detailed documentation, see:
 - [docs/matrix-federation.md](docs/matrix-federation.md) - Complete guide
 - [docs/matrix-federation-testing.md](docs/matrix-federation-testing.md) - Testing instructions
 - [docs/matrix-search-api.md](docs/matrix-search-api.md) - Search API reference
+
+## API Keys
+
+Gifable supports API key authentication for accessing the search endpoint without requiring a login session. This is perfect for integrating Gifable with external applications, mobile apps, CI/CD pipelines, or automation tools.
+
+### Features
+
+- **Optional** - API keys can be enabled or disabled via environment variable
+- **User-managed** - Each user can create and manage their own API keys
+- **Indefinite validity** - Keys remain active until disabled or deleted
+- **Enable/Disable** - Temporarily disable keys without deleting them
+- **Usage tracking** - See when each key was last used
+
+### Configuration
+
+API keys are **enabled by default**. To disable the feature entirely:
+
+```bash
+# In your .env file
+ENABLE_API_KEYS=false
+```
+
+### Creating API Keys
+
+1. Log in to your Gifable instance
+2. Navigate to **Settings**
+3. Scroll to the **API Keys** section
+4. Enter an optional name (e.g., "Mobile App", "CI/CD Pipeline")
+5. Click **Create New API Key**
+6. **Important:** Copy the key immediately - you won't be able to see it again!
+
+Keys follow the format: `gbl_<random_string>`
+
+### Using API Keys
+
+API keys can be used to authenticate requests to the `/search` endpoint. Provide the key using either of these methods:
+
+#### Option 1: Authorization Header (Bearer Token)
+
+```bash
+curl -H "Authorization: Bearer gbl_your_api_key_here" \
+  "https://gifs.example.com/search?q=cat&limit=10"
+```
+
+#### Option 2: X-Api-Key Header
+
+```bash
+curl -H "X-Api-Key: gbl_your_api_key_here" \
+  "https://gifs.example.com/search?q=cat&limit=10"
+```
+
+### Authenticated Endpoints
+
+The following endpoints require authentication via session cookie or API key:
+
+- **`/search`** - Search for GIFs with query parameters
+
+All other endpoints remain open:
+- **Media downloads** - Public media can be accessed without authentication
+- **Matrix federation endpoints** - Always open for federation
+- **Thumbnails** - Public media thumbnails are accessible
+
+### Managing API Keys
+
+In the Settings page, you can:
+
+- **View all keys** - See all your API keys with creation and last-used dates
+- **Disable/Enable** - Temporarily disable keys without deleting them
+- **Delete** - Permanently remove API keys (cannot be undone)
+- **Reveal** - Show the full key value (useful if you need to copy it again)
+
+### Security Best Practices
+
+- **Keep keys secret** - Treat API keys like passwords
+- **Use descriptive names** - Name keys based on their purpose for easy management
+- **Rotate regularly** - Create new keys and delete old ones periodically
+- **Disable unused keys** - Temporarily disable keys instead of deleting if unsure
+- **Monitor usage** - Check the "last used" timestamp to identify inactive keys
+
+### Example: Using API Keys in Scripts
+
+```bash
+#!/bin/bash
+API_KEY="gbl_your_api_key_here"
+GIFABLE_URL="https://gifs.example.com"
+
+# Search for GIFs
+curl -H "Authorization: Bearer $API_KEY" \
+  "${GIFABLE_URL}/search?q=celebration&limit=5"
+```
+
+### Example: Using API Keys in JavaScript
+
+```javascript
+const API_KEY = 'gbl_your_api_key_here';
+const GIFABLE_URL = 'https://gifs.example.com';
+
+async function searchGifs(query) {
+  const response = await fetch(
+    `${GIFABLE_URL}/search?q=${encodeURIComponent(query)}&limit=20`,
+    {
+      headers: {
+        'Authorization': `Bearer ${API_KEY}`
+      }
+    }
+  );
+  return response.json();
+}
+
+searchGifs('cat').then(data => console.log(data));
+```

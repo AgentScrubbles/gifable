@@ -53,6 +53,20 @@ const pgMedia = pgTable("Media", {
     .references(() => pgUsers.id, { onDelete: "cascade" }),
 });
 
+const pgApiKeys = pgTable("ApiKey", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+  key: text("key").unique().notNull(),
+  name: text("name"),
+  enabled: boolean("enabled").default(true).notNull(),
+  lastUsedAt: timestamp("lastUsedAt", { mode: "date" }),
+  userId: text("userId")
+    .notNull()
+    .references(() => pgUsers.id, { onDelete: "cascade" }),
+});
+
 // SQLite Schema
 const sqliteUsers = sqliteTable("User", {
   id: sqliteText("id")
@@ -98,13 +112,31 @@ const sqliteMedia = sqliteTable("Media", {
     .references(() => sqliteUsers.id, { onDelete: "cascade" }),
 });
 
+const sqliteApiKeys = sqliteTable("ApiKey", {
+  id: sqliteText("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  createdAt: sqliteInt("createdAt", { mode: "timestamp" })
+    .defaultNow()
+    .notNull(),
+  key: sqliteText("key").unique().notNull(),
+  name: sqliteText("name"),
+  enabled: sqliteInt("enabled", { mode: "boolean" }).default(true).notNull(),
+  lastUsedAt: sqliteInt("lastUsedAt", { mode: "timestamp" }),
+  userId: sqliteText("userId")
+    .notNull()
+    .references(() => sqliteUsers.id, { onDelete: "cascade" }),
+});
+
 // Export the correct schema based on database type
 export const users = isPostgres ? pgUsers : sqliteUsers;
 export const media = isPostgres ? pgMedia : sqliteMedia;
+export const apiKeys = isPostgres ? pgApiKeys : sqliteApiKeys;
 
 // Define relations (works for both databases)
 export const usersRelations = relations(users, ({ many }) => ({
   medias: many(media),
+  apiKeys: many(apiKeys),
 }));
 
 export const mediaRelations = relations(media, ({ one }) => ({
@@ -114,8 +146,17 @@ export const mediaRelations = relations(media, ({ one }) => ({
   }),
 }));
 
+export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
+  user: one(users, {
+    fields: [apiKeys.userId],
+    references: [users.id],
+  }),
+}));
+
 // Type exports for TypeScript
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Media = typeof media.$inferSelect;
 export type NewMedia = typeof media.$inferInsert;
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type NewApiKey = typeof apiKeys.$inferInsert;
