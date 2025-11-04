@@ -1,11 +1,9 @@
-import type { User } from "~/db/schema";
+import type { User } from "@prisma/client";
 import type { ActionArgs, LoaderArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useActionData, useLoaderData } from "@remix-run/react";
 import { notFound } from "remix-utils";
 import { db } from "~/utils/db.server";
-import { users } from "~/db/schema";
-import { eq } from "drizzle-orm";
 import { requireUserId } from "~/utils/session.server";
 import { makeTitle } from "~/utils/meta";
 import { useEffect } from "react";
@@ -25,10 +23,8 @@ import {
   APITokenForm,
   API_TOKEN_INTENT,
 } from "~/components/APITokenForm";
-import { ApiKeyManagement } from "~/components/ApiKeyManagement";
 import { UserMangement } from "~/components/UserManagement";
 import type { Theme } from "~/components/ThemeStyles";
-import { isApiKeyFeatureEnabled } from "~/utils/api-keys.server";
 
 export function meta() {
   return [{ title: makeTitle(["Settings"]) }];
@@ -58,9 +54,9 @@ export async function action({ request }: ActionArgs) {
 
 export async function loader({ request }: LoaderArgs) {
   const userId = await requireUserId(request);
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-    columns: {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: {
       id: true,
       username: true,
       lastLogin: true,
@@ -74,8 +70,8 @@ export async function loader({ request }: LoaderArgs) {
   return json({
     user,
     users: user?.isAdmin
-      ? await db.query.users.findMany({
-          columns: {
+      ? await db.user.findMany({
+          select: {
             id: true,
             username: true,
             lastLogin: true,
@@ -83,7 +79,6 @@ export async function loader({ request }: LoaderArgs) {
           },
         })
       : null,
-    apiKeyFeatureEnabled: isApiKeyFeatureEnabled(),
   });
 }
 
@@ -114,7 +109,7 @@ export default function AdminRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actionData]);
 
-  const { user, users, apiKeyFeatureEnabled } = data;
+  const { user, users } = data;
   return (
     <div>
       <h1>Settings</h1>
@@ -129,8 +124,6 @@ export default function AdminRoute() {
       <ChangePasswordForm />
 
       <APITokenForm apiToken={apiToken} />
-
-      {apiKeyFeatureEnabled && <ApiKeyManagement />}
 
       {user?.isAdmin ? (
         <section>

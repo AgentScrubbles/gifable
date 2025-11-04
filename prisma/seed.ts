@@ -1,7 +1,7 @@
-import type { Media } from "~/db/schema";
-import { db } from "~/utils/db.server";
-import { media } from "~/db/schema";
+import type { Media } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { register } from "~/utils/session.server";
+const db = new PrismaClient();
 
 const SEED_JSON_URL = process.env.SEED_JSON_URL;
 
@@ -12,22 +12,21 @@ async function seed() {
   console.log(`Seeding database with user ${username}`);
 
   const user = await register({ username, password, isAdmin: true });
-  const mediaItems = await getMedia();
-  const now = new Date();
+  const media = await getMedia();
   await Promise.all(
-    mediaItems.map(
-      ({ url, thumbnailUrl, altText, labels, width, height, color }: Partial<Media>) => {
-        return db.insert(media).values({
-          url: url!,
-          thumbnailUrl,
-          altText,
-          labels,
-          width,
-          height,
-          color,
-          userId: user.id,
-          createdAt: now,
-          updatedAt: now,
+    media.map(
+      ({ url, thumbnailUrl, altText, labels, width, height, color }: Media) => {
+        return db.media.create({
+          data: {
+            url,
+            thumbnailUrl,
+            altText,
+            labels,
+            width,
+            height,
+            color,
+            userId: user.id,
+          },
         });
       }
     )

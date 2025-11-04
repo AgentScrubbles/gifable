@@ -1,20 +1,19 @@
 import type { LoaderArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { notFound } from "remix-utils";
 import { db } from "~/utils/db.server";
-import { media } from "~/db/schema";
-import { eq } from "drizzle-orm";
 import { storage } from "~/utils/s3-storage.server";
 import envServer from "~/utils/env.server";
 
 /**
- * Matrix Client API - Thumbnail Download Endpoint
- * Implements: https://spec.matrix.org/latest/client-server-api/#get_matrixclientv1mediathumbnailservernamemediaid
+ * Matrix Media Thumbnail Endpoint
+ * Implements: https://spec.matrix.org/latest/client-server-api/#get_matrixmediav3thumbnailservernamemediaid
  *
- * This endpoint allows Matrix clients (via their homeserver) to download thumbnails.
- * For PUBLIC media, we don't require authentication.
+ * This endpoint allows Matrix homeservers to download thumbnails from this Gifable instance.
+ * Similar to the download endpoint, but serves thumbnails instead of full images.
  *
- * Falls back to original image if no thumbnail exists.
+ * Supports two modes:
+ * - Redirect mode (allow_redirect=true): Returns 308 redirect to S3 thumbnail URL
+ * - Proxy mode (allow_redirect=false): Streams thumbnail content through the server
  */
 export async function loader({ request, params }: LoaderArgs) {
   const { serverName, mediaId } = params;
@@ -55,11 +54,11 @@ export async function loader({ request, params }: LoaderArgs) {
   }
 
   // Look up the media
-  const mediaItem = await db.query.media.findFirst({
-    where: eq(media.id, mediaId),
+  const media = await db.media.findUnique({
+    where: { id: mediaId },
   });
 
-  if (!mediaItem) {
+  if (!media) {
     return json(
       {
         errcode: "M_NOT_FOUND",
@@ -74,8 +73,8 @@ export async function loader({ request, params }: LoaderArgs) {
     );
   }
 
-  // Only serve public media (no authentication required for public content)
-  if (!mediaItem.isPublic) {
+  // Matrix federation should only serve public media
+  if (!media.isPublic) {
     return json(
       {
         errcode: "M_NOT_FOUND",
@@ -91,7 +90,11 @@ export async function loader({ request, params }: LoaderArgs) {
   }
 
   // Use thumbnail URL if available, otherwise use original image
-  const thumbnailUrl = mediaItem.thumbnailUrl || mediaItem.url;
+  const thumbnailUrl = media.thumbnailUrl || media.url;
+
+  // Check if client supports redirects
+  const url = new URL(request.url);
+  const allowRedirect = url.searchParams.get("allow_redirect") !== "false";
 
   // Get the S3 storage client
   const s3 = storage();
@@ -112,13 +115,24 @@ export async function loader({ request, params }: LoaderArgs) {
     );
   }
 
-  // Thumbnails are typically JPEG, but check the extension
+  // Determine content type
   const ext = filename.split('.').pop()?.toLowerCase();
   const contentType = ext === 'gif' ? 'image/gif' :
                      ext === 'png' ? 'image/png' :
                      'image/jpeg';
 
-  // Proxy the content through our server
+  // If redirect is allowed, return 308 redirect to S3 URL
+  if (allowRedirect) {
+    return new Response(null, {
+      status: 308,
+      headers: {
+        "Location": thumbnailUrl,
+        "Cache-Control": "public, max-age=86400",
+      },
+    });
+  }
+
+  // Otherwise, proxy the content through our server
   const minioClient = (s3 as any).minioClient;
   const bucket = (s3 as any).bucket;
   const filePath = s3.makeFilePath(filename);

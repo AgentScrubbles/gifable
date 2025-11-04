@@ -136,7 +136,7 @@ fabric.properties
 .LSOverride
 
 # Icon must end with two \r
-Icon
+Icon
 
 # Thumbnails
 ._*
@@ -364,8 +364,7 @@ $RECYCLE.BIN/
 .env
 .env.test
 .env.e2e
-*.db*
-drizzle/
+prisma/*.db*
 build/
 public/build/
 public/css/simple.min.css

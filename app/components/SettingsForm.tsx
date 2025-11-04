@@ -1,11 +1,9 @@
-import type { User } from "~/db/schema";
+import type { User } from "@prisma/client";
 import { json } from "@remix-run/node";
 import { withZod } from "@remix-validated-form/with-zod";
 import { ValidatedForm, validationError } from "remix-validated-form";
 import { z } from "zod";
 import { db } from "~/utils/db.server";
-import { users } from "~/db/schema";
-import { eq } from "drizzle-orm";
 import FormInput from "./FormInput";
 import SubmitButton from "./SubmitButton";
 import type { Theme } from "./ThemeStyles";
@@ -35,9 +33,10 @@ export async function settingsAction({
 
   const { preferredLabels, theme } = settingsResult.data;
 
-  await db.update(users)
-    .set({ preferredLabels, theme })
-    .where(eq(users.id, userId));
+  await db.user.update({
+    where: { id: userId },
+    data: { preferredLabels, theme },
+  });
 
   return json({ success: true, intent: SETTINGS_INTENT });
 }

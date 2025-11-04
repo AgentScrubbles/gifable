@@ -1,0 +1,44 @@
+// Temporary schema for PostgreSQL migration
+// This file is used by the migration script only
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client-postgres"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
+}
+
+model Media {
+  id         String   @id @default(uuid())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  url       String
+  thumbnailUrl String?
+  fileHash   String?
+  labels     String?
+  altText    String?
+  width      Int?
+  height     Int?
+  color      String?
+  size       Int?
+  isPublic   Boolean  @default(true)
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id           String   @id @default(uuid())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  username     String   @unique
+  passwordHash String
+  medias       Media[]
+  isAdmin      Boolean  @default(false)
+  lastLogin    DateTime?
+  apiToken     String?
+  preferredLabels String?
+  theme        String?
+}

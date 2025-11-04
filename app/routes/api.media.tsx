@@ -1,8 +1,7 @@
 import type { LoaderArgs } from "@remix-run/node";
+import type { Prisma } from "@prisma/client";
 
 import { db } from "~/utils/db.server";
-import { users, media } from "~/db/schema";
-import { eq, like, and, desc } from "drizzle-orm";
 import { getFullProxyImageUrl, getFullProxyThumbnailUrl } from "~/utils/media.server";
 
 import { unauthorized } from "remix-utils";
@@ -14,9 +13,9 @@ export async function loader({ request }: LoaderArgs) {
   }
 
   const token = auth.replace("Bearer ", "");
-  const user = await db.query.users.findFirst({
-    where: eq(users.apiToken, token),
-    columns: { id: true },
+  const [user] = await db.user.findMany({
+    where: { apiToken: token },
+    select: { id: true },
   });
 
   if (!user) {
@@ -24,19 +23,16 @@ export async function loader({ request }: LoaderArgs) {
   }
 
   const params = new URLSearchParams(request.url.split("?")[1]);
+  const where: Prisma.MediaWhereInput = { userId: user.id };
   const search = (params.get("search") || "").trim();
 
-  const conditions = [eq(media.userId, user.id)];
-
   if (search) {
-    conditions.push(like(media.labels, `%${search}%`));
+    where.labels = { contains: search };
   }
 
-  const where = conditions.length > 1 ? and(...conditions) : conditions[0];
-
-  const data = await db.query.media.findMany({
+  const data = await db.media.findMany({
     where,
-    columns: {
+    select: {
       id: true,
       url: true,
       thumbnailUrl: true,
@@ -45,15 +41,13 @@ export async function loader({ request }: LoaderArgs) {
       height: true,
       color: true,
       altText: true,
-    },
-    with: {
       user: {
-        columns: {
+        select: {
           username: true,
         },
       },
     },
-    orderBy: desc(media.createdAt),
+    orderBy: { createdAt: "desc" },
   });
 
   // Transform to use full proxy URLs

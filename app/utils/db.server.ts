@@ -1,52 +1,24 @@
-import { drizzle as drizzlePostgres } from "drizzle-orm/postgres-js";
-import { drizzle as drizzleSqlite } from "drizzle-orm/better-sqlite3";
-import postgres from "postgres";
-import Database from "better-sqlite3";
-import * as schema from "../db/schema";
+import type { Prisma } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 
-const databaseUrl = process.env.DATABASE_URL;
-
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL environment variable is required");
-}
-
-type DrizzleDB = ReturnType<typeof drizzlePostgres<typeof schema>> | ReturnType<typeof drizzleSqlite<typeof schema>>;
-
-let db: DrizzleDB;
+let db: PrismaClient;
 
 declare global {
-  var __db: DrizzleDB | undefined;
+  var __db: PrismaClient | undefined;
 }
 
-const isPostgres = databaseUrl.startsWith("postgres");
-const enableLogging = process.env.DEBUG?.includes("db") || process.env.DEBUG?.includes("app:*");
+const prismaOptions = {
+  log: ["query", "info", "warn", "error"] as Prisma.LogLevel[],
+};
 
-// Singleton pattern - prevent multiple connections in development
+// this is needed because in development we don't want to restart
+// the server with every change, but we want to make sure we don't
+// create a new connection to the DB with every change either.
 if (process.env.NODE_ENV === "production") {
-  if (isPostgres) {
-    const client = postgres(databaseUrl, {
-      max: 10, // Limit pool size for production
-      idle_timeout: 20,
-      connect_timeout: 10,
-    });
-    db = drizzlePostgres(client, { schema, logger: enableLogging });
-  } else {
-    const sqliteUrl = databaseUrl.replace("file:", "");
-    const sqlite = new Database(sqliteUrl);
-    db = drizzleSqlite(sqlite, { schema, logger: enableLogging });
-  }
+  db = new PrismaClient(prismaOptions);
 } else {
   if (!global.__db) {
-    if (isPostgres) {
-      const client = postgres(databaseUrl, {
-        max: 5, // Lower limit for development
-      });
-      global.__db = drizzlePostgres(client, { schema, logger: enableLogging });
-    } else {
-      const sqliteUrl = databaseUrl.replace("file:", "");
-      const sqlite = new Database(sqliteUrl);
-      global.__db = drizzleSqlite(sqlite, { schema, logger: enableLogging });
-    }
+    global.__db = new PrismaClient(prismaOptions);
   }
   db = global.__db;
 }

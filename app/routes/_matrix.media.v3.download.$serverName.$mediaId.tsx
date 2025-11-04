@@ -1,57 +1,43 @@
 import type { LoaderArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
+import { notFound } from "remix-utils";
 import { db } from "~/utils/db.server";
-import { media } from "~/db/schema";
-import { eq } from "drizzle-orm";
 import { storage } from "~/utils/s3-storage.server";
-import crypto from "crypto";
+import envServer from "~/utils/env.server";
 
 /**
- * Matrix Federation API - Media Download Endpoint
- * Implements: /_matrix/federation/v1/media/download/{mediaId}
+ * Matrix Media Download Endpoint
+ * Implements: https://spec.matrix.org/latest/client-server-api/#get_matrixmediav3downloadservernamemediaid
  *
- * This is the server-to-server federation endpoint for media downloads.
- * Note: No serverName in path - federation requests are already directed at this server.
+ * This endpoint allows Matrix homeservers to download media from this Gifable instance.
+ * The media ID is the Gifable media UUID, and it's embedded in the MXC URI as:
+ * mxc://<server-name>/<media-id>
  *
- * Federation endpoints MUST return multipart/mixed responses with:
- * 1. Metadata part (JSON with Content-Type: application/json)
- * 2. Media part (binary data with appropriate image content type)
- *
- * Only serves public media.
+ * Supports two modes:
+ * - Redirect mode (allow_redirect=true): Returns 308 redirect to S3 URL
+ * - Proxy mode (allow_redirect=false): Streams content through the server
  */
-
-function createMultipartResponse(mediaBuffer: Buffer, contentType: string): Response {
-  const boundary = crypto.randomBytes(16).toString('hex');
-
-  // Build multipart response manually
-  const parts: Buffer[] = [];
-
-  // Part 1: Metadata (empty JSON object)
-  parts.push(Buffer.from(`--${boundary}\r\n`));
-  parts.push(Buffer.from(`Content-Type: application/json\r\n\r\n`));
-  parts.push(Buffer.from(`{}\r\n`));
-
-  // Part 2: Media data
-  parts.push(Buffer.from(`--${boundary}\r\n`));
-  parts.push(Buffer.from(`Content-Type: ${contentType}\r\n\r\n`));
-  parts.push(mediaBuffer);
-  parts.push(Buffer.from(`\r\n`));
-
-  // End boundary
-  parts.push(Buffer.from(`--${boundary}--\r\n`));
-
-  const responseBody = Buffer.concat(parts);
-
-  return new Response(responseBody, {
-    headers: {
-      "Content-Type": `multipart/mixed; boundary=${boundary}`,
-      "Cache-Control": "public, max-age=86400",
-      "Access-Control-Allow-Origin": "*",
-    },
-  });
-}
 export async function loader({ request, params }: LoaderArgs) {
-  const { mediaId } = params;
+  const { serverName, mediaId } = params;
+
+  // Validate server name matches our instance
+  const appUrl = envServer.appUrl;
+  const expectedServerName = new URL(appUrl).hostname;
+
+  if (serverName !== expectedServerName) {
+    return json(
+      {
+        errcode: "M_NOT_FOUND",
+        error: `This server (${expectedServerName}) does not serve media for ${serverName}`,
+      },
+      {
+        status: 404,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+  }
 
   // Validate mediaId is provided
   if (!mediaId) {
@@ -70,11 +56,11 @@ export async function loader({ request, params }: LoaderArgs) {
   }
 
   // Look up the media
-  const mediaItem = await db.query.media.findFirst({
-    where: eq(media.id, mediaId),
+  const media = await db.media.findUnique({
+    where: { id: mediaId },
   });
 
-  if (!mediaItem) {
+  if (!media) {
     return json(
       {
         errcode: "M_NOT_FOUND",
@@ -89,8 +75,9 @@ export async function loader({ request, params }: LoaderArgs) {
     );
   }
 
-  // Only serve public media via federation
-  if (!mediaItem.isPublic) {
+  // Matrix federation should only serve public media
+  // Private media should not be accessible via federation
+  if (!media.isPublic) {
     return json(
       {
         errcode: "M_NOT_FOUND",
@@ -104,10 +91,14 @@ export async function loader({ request, params }: LoaderArgs) {
       }
     );
   }
+
+  // Check if client supports redirects
+  const url = new URL(request.url);
+  const allowRedirect = url.searchParams.get("allow_redirect") !== "false";
 
   // Get the S3 storage client
   const s3 = storage();
-  const filename = s3.getFilenameFromURL(mediaItem.url);
+  const filename = s3.getFilenameFromURL(media.url);
 
   if (!filename) {
     return json(
@@ -131,7 +122,18 @@ export async function loader({ request, params }: LoaderArgs) {
                      ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' :
                      'application/octet-stream';
 
-  // Proxy the content through our server
+  // If redirect is allowed, return 308 redirect to S3 URL
+  if (allowRedirect) {
+    return new Response(null, {
+      status: 308,
+      headers: {
+        "Location": media.url,
+        "Cache-Control": "public, max-age=86400",
+      },
+    });
+  }
+
+  // Otherwise, proxy the content through our server
   const minioClient = (s3 as any).minioClient;
   const bucket = (s3 as any).bucket;
   const filePath = s3.makeFilePath(filename);
@@ -146,8 +148,13 @@ export async function loader({ request, params }: LoaderArgs) {
     }
     const buffer = Buffer.concat(chunks);
 
-    // Return multipart/mixed response (required for federation endpoints)
-    return createMultipartResponse(buffer, contentType);
+    return new Response(buffer, {
+      headers: {
+        "Content-Type": contentType,
+        "Cache-Control": "public, max-age=86400",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
   } catch (error) {
     console.error("Error fetching from S3:", error);
     return json(

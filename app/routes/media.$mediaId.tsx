@@ -1,4 +1,4 @@
-import type { Media } from "~/db/schema";
+import type { Media } from "@prisma/client";
 import type { ActionArgs, LoaderArgs, V2_MetaArgs } from "@remix-run/node";
 import { redirect } from "@remix-run/node";
 import { json } from "@remix-run/node";
@@ -20,8 +20,6 @@ import SubmitButton from "~/components/SubmitButton";
 import { useToast } from "~/components/Toast";
 
 import { db } from "~/utils/db.server";
-import { media } from "~/db/schema";
-import { eq } from "drizzle-orm";
 import { formatBytes, formatDate } from "~/utils/format";
 import { copyToClipboard } from "~/utils/helpers.client";
 import { getTitle, getProxyImageUrl } from "~/utils/media";
@@ -37,13 +35,13 @@ export async function action({ params, request }: ActionArgs) {
   const user = await requireUser(request);
   const form = await request.formData();
 
-  const mediaItem = await db.query.media.findFirst({
-    where: eq(media.id, params.mediaId!),
+  const media = await db.media.findUnique({
+    where: { id: params.mediaId },
   });
-  if (!mediaItem) {
+  if (!media) {
     throw notFound({ message: "Media not found" });
   }
-  if (mediaItem.userId !== user.id && !user.isAdmin) {
+  if (media.userId !== user.id && !user.isAdmin) {
     throw forbidden({ message: "You can't do that" });
   }
 
@@ -52,14 +50,15 @@ export async function action({ params, request }: ActionArgs) {
       if (!user.isAdmin) {
         throw forbidden({ message: "You can't do that" });
       }
-      await db.update(media)
-        .set(await reparse(mediaItem))
-        .where(eq(media.id, params.mediaId!));
+      await db.media.update({
+        where: { id: params.mediaId },
+        data: await reparse(media),
+      });
       return redirect(`/media/${params.mediaId}`);
 
     case "delete":
-      await Promise.all([deleteURL(mediaItem.url), deleteURL(mediaItem.thumbnailUrl)]);
-      await db.delete(media).where(eq(media.id, params.mediaId!));
+      await Promise.all([deleteURL(media.url), deleteURL(media.thumbnailUrl)]);
+      await db.media.delete({ where: { id: params.mediaId } });
       return redirect("/");
 
     default:
@@ -71,24 +70,24 @@ export async function action({ params, request }: ActionArgs) {
 
 export async function loader({ request, params }: LoaderArgs) {
   const user = await requireUser(request);
-  const mediaItem = await db.query.media.findFirst({
-    where: eq(media.id, params.mediaId!),
-    with: {
+  const media = await db.media.findUnique({
+    where: { id: params.mediaId },
+    include: {
       user: {
-        columns: {
+        select: {
           username: true,
         },
       },
     },
   });
-  if (!mediaItem) {
+  if (!media) {
     console.log("Media not found", params.mediaId);
     throw new Response("What a media! Not found.", {
       status: 404,
     });
   }
-  const fullProxyUrl = getFullProxyImageUrl(mediaItem.id);
-  return json({ user, media: mediaItem, fullProxyUrl });
+  const fullProxyUrl = getFullProxyImageUrl(media.id);
+  return json({ user, media, fullProxyUrl });
 }
 
 export default function MediaRoute() {

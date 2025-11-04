@@ -1,31 +1,29 @@
 import type { LoaderArgs } from "@remix-run/node";
 import { notFound, forbidden } from "remix-utils";
 import { db } from "~/utils/db.server";
-import { media } from "~/db/schema";
-import { eq } from "drizzle-orm";
 import { storage } from "~/utils/s3-storage.server";
 import { getUser } from "~/utils/session.server";
 
 export async function loader({ request, params }: LoaderArgs) {
-  const mediaItem = await db.query.media.findFirst({
-    where: eq(media.id, params.mediaId!),
+  const media = await db.media.findUnique({
+    where: { id: params.mediaId },
   });
 
-  if (!mediaItem) {
+  if (!media) {
     throw notFound({ message: "Media not found" });
   }
 
   // Check authorization: must be public OR user owns it OR user is admin
   const user = await getUser(request);
-  const isOwner = user && mediaItem.userId === user.id;
+  const isOwner = user && media.userId === user.id;
   const isAdmin = user && user.isAdmin;
 
-  if (!mediaItem.isPublic && !isOwner && !isAdmin) {
+  if (!media.isPublic && !isOwner && !isAdmin) {
     throw forbidden({ message: "This media is private" });
   }
 
   // If no thumbnail, use original image
-  const thumbnailUrl = mediaItem.thumbnailUrl || mediaItem.url;
+  const thumbnailUrl = media.thumbnailUrl || media.url;
 
   // Get the filename from the URL
   const s3 = storage();

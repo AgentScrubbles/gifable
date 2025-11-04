@@ -2,10 +2,8 @@ import { payloadTooLarge } from "./request.server";
 import bytes from "bytes";
 import { storage } from "./s3-storage.server";
 import { debug } from "debug";
-import type { Media } from "~/db/schema";
+import type { Media, Prisma } from "@prisma/client";
 import { db } from "./db.server";
-import { media } from "~/db/schema";
-import { and, eq, isNotNull, ne, not, or, sql } from "drizzle-orm";
 import { LRUCache } from "lru-cache";
 import ms from "ms";
 import { getImageData } from "./image.server";
@@ -224,92 +222,64 @@ global.labelsCache =
   });
 
 export async function getMediaLabels(
-  options?: TermsOptions & { where?: any }
+  options?: TermsOptions & { where?: Prisma.MediaWhereInput }
 ): Promise<LabelsList> {
-  try {
-    const { where, ...termsOptions } = options || {};
+  const cacheKey = JSON.stringify(options);
 
-    // Only cache when there's no where clause (to avoid complexity with SQL objects)
-    const cacheKey = where ? null : JSON.stringify(termsOptions);
-
-    if (cacheKey) {
-      const cached = labelsCache.get(cacheKey);
-      if (cached) {
-        log("Using cached labels");
-        return cached;
-      }
-    }
-
-    log("Fetching labels");
-
-    // Build the where clause
-    let whereClause: any;
-    const labelsFilter = or(isNotNull(media.labels), ne(media.labels, ""));
-
-    if (where) {
-      whereClause = and(where, labelsFilter);
-    } else {
-      whereClause = labelsFilter;
-    }
-
-    const mediaRecords = await db.query.media.findMany({
-      where: whereClause,
-      columns: {
-        labels: true,
-      },
-    });
-
-    const result = getCommonLabelsTerms(mediaRecords, termsOptions);
-
-    // Only cache if we have a cache key
-    if (cacheKey) {
-      labelsCache.set(cacheKey, result);
-    }
-
-    return result;
-  } catch (error) {
-    console.error("Error in getMediaLabels:", error);
-    throw error;
+  const cached = labelsCache.get(cacheKey);
+  if (cached) {
+    log("Using cached labels", { cacheKey });
+    return cached;
   }
+
+  const { where, ...termsOptions } = options || {};
+
+  log("Fetching labels", { cacheKey });
+
+  const media = await db.media.findMany({
+    where: {
+      ...where,
+      OR: [{ labels: { not: null } }, { labels: { not: "" } }],
+    },
+    select: {
+      labels: true,
+    },
+  });
+
+  labelsCache.set(cacheKey, getCommonLabelsTerms(media, termsOptions));
+
+  return labelsCache.get(cacheKey) || [];
 }
 
 export async function getMediaSuggestions(
-  mediaItem: Pick<Media, "id" | "fileHash" | "altText" | "labels">
+  media: Pick<Media, "id" | "fileHash" | "altText" | "labels">
 ) {
-  if (!mediaItem.fileHash) {
-    return {
-      altText: undefined,
-      labels: undefined,
-    };
-  }
+  const suggestionsWhere = {
+    fileHash: media.fileHash,
+    id: { not: media.id },
+  };
 
   const [[altTextMedia], [labelsMedia]] = await Promise.all([
-    mediaItem.altText
+    media.altText
       ? [null]
-      : [
-          await db.query.media.findFirst({
-            where: and(
-              eq(media.fileHash, mediaItem.fileHash),
-              ne(media.id, mediaItem.id),
-              isNotNull(media.altText),
-              ne(media.altText, "")
-            ),
-            columns: { altText: true },
-          }),
-        ],
-    mediaItem.labels
+      : db.media.findMany({
+          where: {
+            ...suggestionsWhere,
+            AND: [{ altText: { not: "" } }, { altText: { not: null } }],
+          },
+          select: { altText: true },
+          take: 1,
+        }),
+    media.labels
       ? [null]
-      : [
-          await db.query.media.findFirst({
-            where: and(
-              eq(media.fileHash, mediaItem.fileHash),
-              ne(media.id, mediaItem.id),
-              isNotNull(media.labels),
-              ne(media.labels, "")
-            ),
-            columns: { labels: true },
-          }),
-        ],
+      : db.media.findMany({
+          where: {
+            ...suggestionsWhere,
+            AND: [{ labels: { not: "" } }, { labels: { not: null } }],
+          },
+          select: { labels: true },
+          take: 1,
+        }),
   ]);
 
   return {

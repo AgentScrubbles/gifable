@@ -15,8 +15,6 @@ import SubmitButton from "~/components/SubmitButton";
 import { storage } from "~/utils/s3-storage.server";
 
 import { db } from "~/utils/db.server";
-import { media } from "~/db/schema";
-import { eq } from "drizzle-orm";
 import { getUser, requireUserId } from "~/utils/session.server";
 import bytes from "bytes";
 import { getTitle } from "~/utils/media";
@@ -93,8 +91,8 @@ export async function action({ params, request }: ActionArgs) {
   const user = await getUser(request);
   if (!user) throw new Error("User not found");
 
-  const originalMedia = await db.query.media.findFirst({
-    where: eq(media.id, params.mediaId!),
+  const originalMedia = await db.media.findUnique({
+    where: { id: params.mediaId },
   });
 
   if (!originalMedia) {
@@ -140,15 +138,16 @@ export async function action({ params, request }: ActionArgs) {
       thumbnailUrl = resp.url;
     }
 
-    await db.update(media)
-      .set({
+    await db.media.update({
+      where: { id: params.mediaId },
+      data: {
         url: mediaUrl,
         thumbnailUrl,
         ...imageData,
         size,
         fileHash,
-      })
-      .where(eq(media.id, params.mediaId!));
+      },
+    });
 
     await storage().delete(deletedFilename);
     await storage().delete(deletedThumbnailFilename);
@@ -162,15 +161,15 @@ export async function action({ params, request }: ActionArgs) {
 }
 
 export async function loader({ params, request }: LoaderArgs) {
-  const mediaItem = await db.query.media.findFirst({
-    where: eq(media.id, params.mediaId!),
+  const media = await db.media.findUnique({
+    where: { id: params.mediaId },
   });
-  if (!mediaItem) {
+  if (!media) {
     throw notFound({ message: "Media not found" });
   }
   const query = new URLSearchParams(request.url.split("?")[1]);
 
-  return json({ media: mediaItem, uploadType: query.get("uploadType") || "url" });
+  return json({ media, uploadType: query.get("uploadType") || "url" });
 }
 
 export default function NewMediaRoute() {

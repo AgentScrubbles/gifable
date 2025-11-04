@@ -36,16 +36,11 @@ export async function loader({ request }: LoaderArgs) {
 function Document({
   title,
   children,
-  data,
 }: {
   children: React.ReactNode;
   title?: string;
-  data?: {
-    user?: { theme?: string } | null;
-    buildSHA?: string;
-    termsURL?: string;
-  };
 }) {
+  const data = useLoaderData<typeof loader>();
   return (
     <html lang="en">
       <Head theme={data?.user?.theme as Theme} title={title} />
@@ -112,9 +107,8 @@ function Document({
 }
 
 export default function App() {
-  const data = useLoaderData<typeof loader>();
   return (
-    <Document data={data}>
+    <Document>
       <Outlet />
     </Document>
   );
