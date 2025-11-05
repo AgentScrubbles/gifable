@@ -6,6 +6,7 @@ import { getUser } from "~/utils/session.server";
 import { isGiphyId } from "~/utils/giphy.server";
 import { streamGiphyImage } from "~/utils/giphy-fetch.server";
 import { trackMediaView } from "~/utils/analytics.server";
+import envServer from "~/utils/env.server";
 
 export async function loader({ request, params }: LoaderArgs) {
   const mediaId = params.mediaId!;
@@ -14,8 +15,13 @@ export async function loader({ request, params }: LoaderArgs) {
   const user = await getUser(request);
   const userAgent = request.headers.get("User-Agent") || undefined;
 
+  // Determine view type based on Referer header
+  const referer = request.headers.get("Referer");
+  const appUrl = envServer.appUrl;
+  const viewType = referer && referer.startsWith(appUrl) ? "internal" : "external";
+
   // Track view asynchronously (don't await)
-  trackMediaView(mediaId, user?.id, userAgent);
+  trackMediaView(mediaId, user?.id, userAgent, viewType);
 
   // Handle Giphy IDs
   if (isGiphyId(mediaId)) {

@@ -23,9 +23,9 @@ import { trackMediaView } from "~/utils/analytics.server";
 export async function loader({ request, params }: LoaderArgs) {
   const { serverName, mediaId } = params;
 
-  // Track view asynchronously (don't await)
+  // Track view asynchronously (don't await) - Matrix views are "federation" type
   const userAgent = request.headers.get("User-Agent") || undefined;
-  trackMediaView(mediaId!, undefined, userAgent);
+  trackMediaView(mediaId!, undefined, userAgent, "federation");
 
   // Validate server name matches our instance
   const appUrl = envServer.appUrl;

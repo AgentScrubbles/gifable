@@ -4,11 +4,14 @@ import { isGiphyId } from "./giphy.server";
 /**
  * Track a media view
  * This is async but we don't await it in routes to avoid slowing down image serving
+ *
+ * @param viewType - "internal" (browsing app), "external" (direct/embed), "federation" (Matrix)
  */
 export async function trackMediaView(
   mediaId: string,
   userId?: string | null,
-  userAgent?: string | null
+  userAgent?: string | null,
+  viewType: "internal" | "external" | "federation" = "external"
 ): Promise<void> {
   try {
     await db.mediaView.create({
@@ -16,6 +19,7 @@ export async function trackMediaView(
         mediaId,
         userId: userId || null,
         userAgent: userAgent || null,
+        viewType,
       },
     });
   } catch (error) {
@@ -170,68 +174,94 @@ export async function getMediaStats(mediaId: string): Promise<{
  * Generate Prometheus metrics format
  */
 export async function generatePrometheusMetrics(): Promise<string> {
-  const [
-    viewCounts,
-    viewCounts24h,
-    viewCounts7d,
-    totalViews,
-    giphyViews,
-    localMediaCount,
-  ] = await Promise.all([
-    getViewCounts(),
-    getViewCountsLast24h(),
-    getViewCountsLast7d(),
-    getTotalViews(),
-    getTotalGiphyViews(),
-    getTotalLocalMediaCount(),
-  ]);
+  // Get view counts grouped by mediaId and viewType
+  const viewsByType = await db.mediaView.groupBy({
+    by: ["mediaId", "viewType"],
+    _count: {
+      id: true,
+    },
+  });
+
+  // Get view counts by type for last 24h and 7d
+  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const [viewsByType24h, viewsByType7d, totalViews, localMediaCount] =
+    await Promise.all([
+      db.mediaView.groupBy({
+        by: ["mediaId", "viewType"],
+        where: { viewedAt: { gte: since24h } },
+        _count: { id: true },
+      }),
+      db.mediaView.groupBy({
+        by: ["mediaId", "viewType"],
+        where: { viewedAt: { gte: since7d } },
+        _count: { id: true },
+      }),
+      getTotalViews(),
+      getTotalLocalMediaCount(),
+    ]);
 
   const lines: string[] = [];
 
-  // Total views per media
-  lines.push("# HELP media_views_total Total number of views per media item");
+  // Total views per media with viewType label
+  lines.push(
+    "# HELP media_views_total Total number of views per media item by view type"
+  );
   lines.push("# TYPE media_views_total counter");
-  for (const [mediaId, count] of viewCounts) {
-    const type = isGiphyId(mediaId) ? "giphy" : "local";
-    const escapedId = mediaId.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-    lines.push(`media_views_total{media_id="${escapedId}",type="${type}"} ${count}`);
+  for (const result of viewsByType) {
+    const type = isGiphyId(result.mediaId) ? "giphy" : "local";
+    const escapedId = result.mediaId.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    lines.push(
+      `media_views_total{media_id="${escapedId}",media_type="${type}",view_type="${result.viewType}"} ${result._count.id}`
+    );
   }
   lines.push("");
 
-  // Last 24 hours per media
-  lines.push("# HELP media_views_last_24h Views in last 24 hours per media item");
+  // Last 24 hours per media with viewType
+  lines.push(
+    "# HELP media_views_last_24h Views in last 24 hours per media item by view type"
+  );
   lines.push("# TYPE media_views_last_24h gauge");
-  for (const [mediaId, count] of viewCounts24h) {
-    const type = isGiphyId(mediaId) ? "giphy" : "local";
-    const escapedId = mediaId.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-    lines.push(`media_views_last_24h{media_id="${escapedId}",type="${type}"} ${count}`);
+  for (const result of viewsByType24h) {
+    const type = isGiphyId(result.mediaId) ? "giphy" : "local";
+    const escapedId = result.mediaId.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    lines.push(
+      `media_views_last_24h{media_id="${escapedId}",media_type="${type}",view_type="${result.viewType}"} ${result._count.id}`
+    );
   }
   lines.push("");
 
-  // Last 7 days per media
-  lines.push("# HELP media_views_last_7d Views in last 7 days per media item");
+  // Last 7 days per media with viewType
+  lines.push(
+    "# HELP media_views_last_7d Views in last 7 days per media item by view type"
+  );
   lines.push("# TYPE media_views_last_7d gauge");
-  for (const [mediaId, count] of viewCounts7d) {
-    const type = isGiphyId(mediaId) ? "giphy" : "local";
-    const escapedId = mediaId.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-    lines.push(`media_views_last_7d{media_id="${escapedId}",type="${type}"} ${count}`);
+  for (const result of viewsByType7d) {
+    const type = isGiphyId(result.mediaId) ? "giphy" : "local";
+    const escapedId = result.mediaId.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    lines.push(
+      `media_views_last_7d{media_id="${escapedId}",media_type="${type}",view_type="${result.viewType}"} ${result._count.id}`
+    );
   }
   lines.push("");
 
-  // Aggregate metrics
-  lines.push("# HELP total_media_views Total views across all media");
+  // Aggregate metrics by view type
+  const totalByViewType = await db.mediaView.groupBy({
+    by: ["viewType"],
+    _count: { id: true },
+  });
+
+  lines.push("# HELP total_media_views Total views across all media by view type");
   lines.push("# TYPE total_media_views counter");
-  lines.push(`total_media_views ${totalViews}`);
+  for (const result of totalByViewType) {
+    lines.push(`total_media_views{view_type="${result.viewType}"} ${result._count.id}`);
+  }
   lines.push("");
 
   lines.push("# HELP gifable_media_count Total number of local media items");
   lines.push("# TYPE gifable_media_count gauge");
   lines.push(`gifable_media_count ${localMediaCount}`);
-  lines.push("");
-
-  lines.push("# HELP giphy_media_views Total views for Giphy media");
-  lines.push("# TYPE giphy_media_views counter");
-  lines.push(`giphy_media_views ${giphyViews}`);
   lines.push("");
 
   return lines.join("\n");

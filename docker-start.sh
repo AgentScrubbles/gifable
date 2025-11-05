@@ -5,7 +5,7 @@ echo "🚀 Starting Gifable..."
 
 # Run database migrations
 echo "📦 Running database migrations..."
-node ./migrate-api-keys.js
+npx prisma migrate deploy
 
 # Seed admin user if configured
 echo "👤 Checking for admin user..."

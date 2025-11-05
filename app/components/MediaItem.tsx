@@ -32,7 +32,11 @@ export default function MediaItem(props: MediaItemProps) {
   const image = `${getProxyImageUrl(id)}?hash=${fileHash}`;
   return (
     <figure id={props.id} className="media" {...restProps}>
-      <div className="img-wrapper">
+      <div
+        className="img-wrapper"
+        onMouseEnter={() => url.endsWith(".gif") && isHydrated && setPlayingId(id)}
+        onMouseLeave={() => url.endsWith(".gif") && isHydrated && setPlayingId("")}
+      >
         <Link prefetch="intent" to={`/media/${id}`} aria-label={`View media`}>
           <img
             loading="lazy"

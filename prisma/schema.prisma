@@ -68,7 +68,9 @@ model MediaView {
   userId    String?
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   userAgent String?
+  viewType  String   @default("external") // "internal" (browsing app), "external" (direct/embed), "federation" (Matrix)
 
   @@index([mediaId])
   @@index([viewedAt])
+  @@index([viewType])
 }
