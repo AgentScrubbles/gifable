@@ -66,6 +66,7 @@ export async function streamGiphyImage(
         "Content-Length": buffer.length.toString(),
         "Cache-Control": "public, max-age=86400", // 24 hours
         "X-Content-Source": "giphy", // Indicate this is from Giphy
+        "Access-Control-Allow-Origin": "*",
       },
     });
   } catch (error) {
