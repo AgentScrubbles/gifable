@@ -42,19 +42,47 @@ function Document({
 }) {
   const data = useLoaderData<typeof loader>();
   return (
+    <DocumentShell
+      title={title}
+      theme={data?.user?.theme as Theme}
+      showNav={Boolean(data?.user)}
+      termsURL={data?.termsURL}
+      buildSHA={data?.buildSHA}
+    >
+      {children}
+    </DocumentShell>
+  );
+}
+
+function DocumentShell({
+  title,
+  children,
+  theme,
+  showNav = false,
+  termsURL,
+  buildSHA,
+}: {
+  children: React.ReactNode;
+  title?: string;
+  theme?: Theme;
+  showNav?: boolean;
+  termsURL?: string;
+  buildSHA?: string;
+}) {
+  return (
     <html lang="en">
-      <Head theme={data?.user?.theme as Theme} title={title} />
+      <Head theme={theme} title={title} />
       <body>
-        <Header showNav={Boolean(data?.user)} />
+        <Header showNav={showNav} />
 
         <main id="main">{children}</main>
 
         <footer>
           <menu>
-            {data?.termsURL && (
+            {termsURL && (
               <li>
                 <a
-                  href={data?.termsURL}
+                  href={termsURL}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -63,15 +91,15 @@ function Document({
               </li>
             )}
 
-            {data?.buildSHA && (
+            {buildSHA && (
               <li>
                 Version:{" "}
                 <a
                   href={`https://github.com/pietvanzoen/gifable/tree/${
-                    data?.buildSHA === "dev" ? "main" : data?.buildSHA
+                    buildSHA === "dev" ? "main" : buildSHA
                   }`}
                 >
-                  {data?.buildSHA}
+                  {buildSHA}
                 </a>
               </li>
             )}
@@ -119,24 +147,24 @@ export function ErrorBoundary() {
   logError(error);
   if (isRouteErrorResponse(error)) {
     return (
-      <Document title={`${error.status} ${error.statusText}`}>
+      <DocumentShell title={`${error.status} ${error.statusText}`}>
         <div className="notice">
           <h1>
             {error.status} {error.statusText}
           </h1>
           <p>{error.data}</p>
         </div>
-      </Document>
+      </DocumentShell>
     );
   } else {
     return (
-      <Document title="Something went wrong">
+      <DocumentShell title="Something went wrong">
         <center>
           <h1>🙈 Whoops, something went wrong</h1>
           <img src="/images/500.jpg" alt="500 error" width="300" />
           <p>Sorry about that. Please try again.</p>
         </center>
-      </Document>
+      </DocumentShell>
     );
   }
 }
