@@ -6,6 +6,7 @@ import {
   isRouteErrorResponse,
   Link,
   useActionData,
+  useFetcher,
   useLoaderData,
   useRouteError,
   useSearchParams,
@@ -22,8 +23,9 @@ import { requireUser } from "~/utils/session.server";
 import MediaLabelsInput from "~/components/MediaLabelsInput";
 import { MediaSchema } from "~/utils/validators";
 import FormInput from "~/components/FormInput";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { makeTitle } from "~/utils/meta";
+import { isAltTextEnabled } from "~/utils/alt-text.server";
 import { getTitle, getProxyImageUrl } from "~/utils/media";
 import { conflict } from "~/utils/request.server";
 import Alert from "~/components/Alert";
@@ -82,7 +84,7 @@ export async function action({ params, request }: ActionArgs) {
   return redirect(`/media/${id}`);
 }
 
-export async function loader({ params }: LoaderArgs) {
+export async function loader({ params, request }: LoaderArgs) {
   const media = await db.media.findUnique({
     where: { id: params.mediaId },
   });
@@ -90,20 +92,25 @@ export async function loader({ params }: LoaderArgs) {
     throw notFound({ message: "Media not found" });
   }
 
-  const [suggestions, terms] = await Promise.all([
+  const [suggestions, terms, user] = await Promise.all([
     getMediaSuggestions(media),
     getMediaLabels(),
+    db.user.findUnique({
+      where: { id: media.userId },
+      select: { cfAccountId: true, cfApiToken: true },
+    }),
   ]);
 
   return json({
     media,
     terms,
     suggestions,
+    canGenerateAltText: user ? isAltTextEnabled(user as any) : false,
   });
 }
 
 export default function MediaRoute() {
-  const { media, terms, suggestions } = useLoaderData<typeof loader>();
+  const { media, terms, suggestions, canGenerateAltText } = useLoaderData<typeof loader>();
   const [searchParams] = useSearchParams();
   const actionData = useActionData<typeof action>();
   const isNew = searchParams.get("new") === "true";
@@ -112,6 +119,21 @@ export default function MediaRoute() {
   const { url = "", width, height, color } = media;
   const [altText, setAltText] = useState(media.altText || "");
   const [labels, setLabels] = useState(media.labels || "");
+  const altTextFetcher = useFetcher();
+  const isGenerating = altTextFetcher.state !== "idle";
+
+  useEffect(() => {
+    if (altTextFetcher.data?.altText) {
+      setAltText(altTextFetcher.data.altText);
+      const textarea = document.querySelector<HTMLTextAreaElement>('[name="altText"]');
+      if (textarea) textarea.value = altTextFetcher.data.altText;
+    }
+    if (altTextFetcher.data?.labels && !labels) {
+      setLabels(altTextFetcher.data.labels);
+      const labelsInput = document.querySelector<HTMLInputElement>('[name="labels"]');
+      if (labelsInput) labelsInput.value = altTextFetcher.data.labels;
+    }
+  }, [altTextFetcher.data]);
 
   const title = url.split("/").pop();
 
@@ -154,6 +176,27 @@ export default function MediaRoute() {
             <p>
               Add more info about this image. You can edit this later if you
               want.
+            </p>
+          )}
+
+          {canGenerateAltText && (!altText || !labels) && (
+            <p>
+              <button
+                type="button"
+                className="link"
+                disabled={isGenerating}
+                onClick={() => {
+                  altTextFetcher.submit(null, {
+                    method: "post",
+                    action: `/media/${media.id}/generate-alt-text`,
+                  });
+                }}
+              >
+                {isGenerating ? "Generating labels and alt text..." : "Generate labels and alt text with AI"}
+              </button>
+              {altTextFetcher.data?.error && (
+                <span style={{ color: "red" }}> {altTextFetcher.data.error}</span>
+              )}
             </p>
           )}
 

@@ -106,7 +106,16 @@ export async function reparse(media: Media) {
     return media;
   }
 
-  const buffer = await storage().download(media.url);
+  const s3 = storage();
+  const minioClient = (s3 as any).minioClient;
+  const bucket = (s3 as any).bucket;
+  const filePath = s3.makeFilePath(filename);
+  const stream = await minioClient.getObject(bucket, filePath);
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(chunk);
+  }
+  const buffer = Buffer.concat(chunks);
 
   const { width, height, color, thumbnail } = await getImageData(buffer);
 

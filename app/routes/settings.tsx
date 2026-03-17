@@ -67,6 +67,9 @@ export async function loader({ request }: LoaderArgs) {
       preferredLabels: true,
       theme: true,
       giphyApiKey: true,
+      cfAccountId: true,
+      cfApiToken: true,
+      cfAiModel: true,
     },
   });
 
@@ -125,6 +128,9 @@ export default function AdminRoute() {
           preferredLabels: user?.preferredLabels || "",
           theme: (user?.theme as Theme) || "system",
           giphyApiKey: user?.giphyApiKey || "",
+          cfAccountId: user?.cfAccountId || "",
+          cfApiToken: user?.cfApiToken || "",
+          cfAiModel: user?.cfAiModel || "",
         }}
       />
 

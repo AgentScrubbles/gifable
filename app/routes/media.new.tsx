@@ -27,6 +27,7 @@ import { getTitle } from "~/utils/media";
 import { makeTitle } from "~/utils/meta";
 import Alert from "~/components/Alert";
 import { conflict } from "~/utils/request.server";
+import { generateImageMetadata, isAltTextEnabled } from "~/utils/alt-text.server";
 import style from "~/styles/new.css";
 import { MediaSchema } from "~/utils/validators";
 import { formatBytes } from "~/utils/format";
@@ -124,12 +125,26 @@ export async function action({ request }: ActionArgs) {
     thumbnailUrl = resp.url;
   }
 
+  let finalAltText = altText;
+  let finalLabels = labels;
+  if (!altText || !labels) {
+    const cfUser = await db.user.findUnique({
+      where: { id: userId },
+      select: { cfAccountId: true, cfApiToken: true, cfAiModel: true },
+    });
+    if (cfUser && isAltTextEnabled(cfUser)) {
+      const ai = await generateImageMetadata(cfUser, thumbnail || buffer);
+      if (!altText) finalAltText = ai.altText ?? undefined;
+      if (!labels) finalLabels = ai.labels ?? undefined;
+    }
+  }
+
   const media = await db.media.create({
     data: {
       url: mediaUrl,
       thumbnailUrl,
-      labels,
-      altText,
+      labels: finalLabels,
+      altText: finalAltText,
       ...imageData,
       size,
       userId,

@@ -45,6 +45,9 @@ model User {
   preferredLabels String?
   theme        String?
   giphyApiKey  String?
+  cfAccountId  String?
+  cfApiToken   String?
+  cfAiModel    String?
 }
 
 model ApiKey {
